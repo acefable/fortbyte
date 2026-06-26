@@ -1,0 +1,61 @@
+package main
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/youruser/gokeep/internal/session"
+)
+
+var resetCmd = &cobra.Command{
+	Use:   "reset",
+	Short: "Delete vault and start fresh (irreversible)",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		if vaultDir == "" {
+			return errors.New("cannot determine home directory")
+		}
+		vaultPath := filepath.Join(vaultDir, "vault.enc")
+		if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
+			return fmt.Errorf("no vault found at %s", vaultPath)
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), "WARNING: This will permanently delete your vault and all secrets!")
+		fmt.Fprintln(cmd.OutOrStdout(), "This action is IRREVERSIBLE. All data will be lost.")
+		fmt.Fprintln(cmd.OutOrStdout())
+		fmt.Fprintf(cmd.OutOrStdout(), "Vault location: %s\n", vaultPath)
+		fmt.Fprintln(cmd.OutOrStdout())
+		fmt.Fprint(cmd.OutOrStdout(), "Type 'RESET' to confirm: ")
+		reader := bufio.NewReader(cmd.InOrStdin())
+		confirm, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("read confirmation: %w", err)
+		}
+		confirm = strings.TrimSpace(confirm)
+		if confirm != "RESET" {
+			fmt.Fprintln(cmd.OutOrStdout(), "Cancelled.")
+			return nil
+		}
+		if err := session.Clear(vaultDir); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not clear session: %v\n", err)
+		}
+		if err := os.Remove(vaultPath); err != nil {
+			return fmt.Errorf("delete vault: %w", err)
+		}
+		sessionPath := filepath.Join(vaultDir, "session")
+		if err := os.Remove(sessionPath); err != nil && !os.IsNotExist(err) {
+			//nolint:errcheck // CLI output — write to stderr failure is non-recoverable
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not remove session: %v\n", err)
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), "Vault deleted successfully. All secrets have been removed.")
+		return nil
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(resetCmd)
+}

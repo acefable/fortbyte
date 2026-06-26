@@ -1,6 +1,8 @@
 package vault
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,10 +16,12 @@ import (
 
 // Sentinel errors
 var (
-	ErrVaultExists     = errors.New("vault already exists")
-	ErrVaultNotFound   = errors.New("vault not found: run 'gokeep init' first")
-	ErrSecretNotFound  = errors.New("secret not found")
-	ErrVersionMismatch = errors.New("vault version mismatch")
+	ErrVaultExists         = errors.New("vault already exists")
+	ErrVaultNotFound       = errors.New("vault not found: run 'gokeep init' first")
+	ErrSecretNotFound      = errors.New("secret not found")
+	ErrProjectNotFound     = errors.New("project not found")
+	ErrEnvironmentNotFound = errors.New("environment not found")
+	ErrVersionMismatch     = errors.New("vault version mismatch")
 )
 
 const (
@@ -27,20 +31,46 @@ const (
 	vaultVersion  = 1
 )
 
-// Secret represents a single stored credential.
-type Secret struct {
-	Name      string    `json:"name"`
-	Username  string    `json:"username"`
-	Password  string    `json:"password"`
-	URL       string    `json:"url,omitempty"`
-	Notes     string    `json:"notes,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+// Project represents a logical grouping of environments and secrets.
+type Project struct {
+	UID         string    `json:"uid"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	URL         string    `json:"url,omitempty"`
+	Notes       string    `json:"notes,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// Vault is the in-memory secret store.
+// Environment represents a deployment stage within a project.
+type Environment struct {
+	UID         string    `json:"uid"`
+	Name        string    `json:"name"`
+	ProjectUID  string    `json:"project_uid"`
+	Description string    `json:"description,omitempty"`
+	Notes       string    `json:"notes,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Secret represents a single stored secret value, optionally scoped to a project/env.
+type Secret struct {
+	UID            string    `json:"uid"`
+	Name           string    `json:"name"`
+	ProjectUID     string    `json:"project_uid,omitempty"`
+	EnvironmentUID string    `json:"environment_uid,omitempty"`
+	Value          string    `json:"value"`
+	URL            string    `json:"url,omitempty"`
+	Notes          string    `json:"notes,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// Vault is the in-memory hierarchical secret store.
 type Vault struct {
-	Secrets map[string]Secret `json:"secrets"`
+	Projects     map[string]Project     `json:"projects"`
+	Environments map[string]Environment `json:"environments"`
+	Secrets      map[string]Secret      `json:"secrets"`
 }
 
 // vaultFile is the on-disk encrypted envelope.
@@ -53,6 +83,15 @@ type vaultFile struct {
 // lock represents an advisory file lock.
 type lock struct {
 	file *os.File
+}
+
+// generateUID returns a 16-byte crypto/rand hex string (32 chars).
+func generateUID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(fmt.Sprintf("generateUID: crypto/rand failed: %v", err))
+	}
+	return hex.EncodeToString(b[:])
 }
 
 // acquireLock acquires an exclusive advisory lock on the vault.
@@ -86,7 +125,6 @@ func (l *lock) release() {
 }
 
 // Init creates a new vault at dir/vault.enc with the given master key and salt.
-// The salt must be the same one used to derive key via crypto.DeriveKey.
 func Init(dir string, key []byte, salt []byte) error {
 	vaultPath := filepath.Join(dir, vaultFileName)
 
@@ -107,7 +145,9 @@ func Init(dir string, key []byte, salt []byte) error {
 
 	// Create empty vault
 	v := &Vault{
-		Secrets: make(map[string]Secret),
+		Projects:     make(map[string]Project),
+		Environments: make(map[string]Environment),
+		Secrets:      make(map[string]Secret),
 	}
 
 	// Marshal vault to JSON
@@ -190,6 +230,12 @@ func Open(dir string, key []byte) (*Vault, error) {
 		return nil, fmt.Errorf("unmarshal vault: %w", err)
 	}
 
+	if v.Projects == nil {
+		v.Projects = make(map[string]Project)
+	}
+	if v.Environments == nil {
+		v.Environments = make(map[string]Environment)
+	}
 	if v.Secrets == nil {
 		v.Secrets = make(map[string]Secret)
 	}
@@ -198,9 +244,7 @@ func Open(dir string, key []byte) (*Vault, error) {
 }
 
 // Save encrypts and writes the vault to dir/vault.enc.
-// Acquires an advisory lock to prevent concurrent writes.
 func (v *Vault) Save(dir string, key []byte) error {
-	// Acquire lock
 	lk, err := acquireLock(dir)
 	if err != nil {
 		return fmt.Errorf("acquire lock: %w", err)
@@ -235,7 +279,6 @@ func (v *Vault) Save(dir string, key []byte) error {
 	// Update vault file structure
 	vf.Payload = payload
 
-	// Marshal to JSON
 	data, err = json.Marshal(vf)
 	if err != nil {
 		return fmt.Errorf("marshal vault file: %w", err)
@@ -280,35 +323,6 @@ func writeAtomic(path string, data []byte) error {
 	return f.Close()
 }
 
-// Add inserts a secret, returns its ID.
-func (v *Vault) Add(s Secret) string {
-	id := fmt.Sprintf("%x", time.Now().UnixNano())
-	s.CreatedAt = time.Now()
-	s.UpdatedAt = time.Now()
-	v.Secrets[id] = s
-	return id
-}
-
-// Get retrieves a secret by ID.
-func (v *Vault) Get(id string) (Secret, bool) {
-	s, ok := v.Secrets[id]
-	return s, ok
-}
-
-// List returns all secrets (keyed by ID).
-func (v *Vault) List() map[string]Secret {
-	return v.Secrets
-}
-
-// Remove deletes a secret by ID. Returns false if not found.
-func (v *Vault) Remove(id string) bool {
-	if _, ok := v.Secrets[id]; !ok {
-		return false
-	}
-	delete(v.Secrets, id)
-	return true
-}
-
 // GetSalt reads the salt from the vault file.
 func GetSalt(dir string) ([]byte, error) {
 	vaultPath := filepath.Join(dir, vaultFileName)
@@ -327,4 +341,229 @@ func GetSalt(dir string) ([]byte, error) {
 	}
 
 	return vf.Salt, nil
+}
+
+// --- Project CRUD ---
+
+// AddProject generates a UID, sets timestamps, inserts the project, and returns the UID.
+func (v *Vault) AddProject(p Project) string {
+	p.UID = generateUID()
+	p.CreatedAt = time.Now()
+	p.UpdatedAt = p.CreatedAt
+	v.Projects[p.UID] = p
+	return p.UID
+}
+
+// GetProject returns the project by UID.
+func (v *Vault) GetProject(uid string) (Project, bool) {
+	p, ok := v.Projects[uid]
+	return p, ok
+}
+
+// ListProjects returns all projects.
+func (v *Vault) ListProjects() map[string]Project {
+	return v.Projects
+}
+
+// UpdateProject applies the updates function to the project and sets UpdatedAt.
+func (v *Vault) UpdateProject(uid string, updates func(*Project)) bool {
+	p, ok := v.Projects[uid]
+	if !ok {
+		return false
+	}
+	updates(&p)
+	p.UpdatedAt = time.Now()
+	v.Projects[uid] = p
+	return true
+}
+
+// RemoveProject removes a project and cascades to its environments and secrets.
+func (v *Vault) RemoveProject(uid string) bool {
+	if _, ok := v.Projects[uid]; !ok {
+		return false
+	}
+
+	// Collect environment UIDs that belong to this project
+	var envUIDs []string
+	for eUID, e := range v.Environments {
+		if e.ProjectUID == uid {
+			envUIDs = append(envUIDs, eUID)
+		}
+	}
+
+	// Remove environments and their secrets
+	for _, eUID := range envUIDs {
+		for sUID, s := range v.Secrets {
+			if s.EnvironmentUID == eUID {
+				delete(v.Secrets, sUID)
+			}
+		}
+		delete(v.Environments, eUID)
+	}
+
+	// Remove secrets directly scoped to project
+	for sUID, s := range v.Secrets {
+		if s.ProjectUID == uid {
+			delete(v.Secrets, sUID)
+		}
+	}
+
+	delete(v.Projects, uid)
+	return true
+}
+
+// --- Environment CRUD ---
+
+// AddEnvironment generates a UID, sets timestamps, inserts the environment, and returns the UID.
+func (v *Vault) AddEnvironment(e Environment) string {
+	e.UID = generateUID()
+	e.CreatedAt = time.Now()
+	e.UpdatedAt = e.CreatedAt
+	v.Environments[e.UID] = e
+	return e.UID
+}
+
+// GetEnvironment returns the environment by UID.
+func (v *Vault) GetEnvironment(uid string) (Environment, bool) {
+	e, ok := v.Environments[uid]
+	return e, ok
+}
+
+// ListEnvironments returns all environments.
+func (v *Vault) ListEnvironments() map[string]Environment {
+	return v.Environments
+}
+
+// ListEnvironmentsByProject returns environments filtered by ProjectUID.
+func (v *Vault) ListEnvironmentsByProject(projectUID string) map[string]Environment {
+	result := make(map[string]Environment)
+	for uid, e := range v.Environments {
+		if e.ProjectUID == projectUID {
+			result[uid] = e
+		}
+	}
+	return result
+}
+
+// UpdateEnvironment applies the updates function to the environment and sets UpdatedAt.
+func (v *Vault) UpdateEnvironment(uid string, updates func(*Environment)) bool {
+	e, ok := v.Environments[uid]
+	if !ok {
+		return false
+	}
+	updates(&e)
+	e.UpdatedAt = time.Now()
+	v.Environments[uid] = e
+	return true
+}
+
+// RemoveEnvironment removes an environment and cascades to its secrets.
+func (v *Vault) RemoveEnvironment(uid string) bool {
+	if _, ok := v.Environments[uid]; !ok {
+		return false
+	}
+
+	// Remove secrets scoped to this environment
+	for sUID, s := range v.Secrets {
+		if s.EnvironmentUID == uid {
+			delete(v.Secrets, sUID)
+		}
+	}
+
+	delete(v.Environments, uid)
+	return true
+}
+
+// --- Secret CRUD ---
+
+// AddSecret generates a UID, sets timestamps, inserts the secret, and returns the UID.
+func (v *Vault) AddSecret(s Secret) string {
+	s.UID = generateUID()
+	s.CreatedAt = time.Now()
+	s.UpdatedAt = s.CreatedAt
+	v.Secrets[s.UID] = s
+	return s.UID
+}
+
+// GetSecret returns the secret by UID.
+func (v *Vault) GetSecret(uid string) (Secret, bool) {
+	s, ok := v.Secrets[uid]
+	return s, ok
+}
+
+// ListSecrets returns all secrets.
+func (v *Vault) ListSecrets() map[string]Secret {
+	return v.Secrets
+}
+
+// ListSecretsByProject returns secrets filtered by ProjectUID.
+func (v *Vault) ListSecretsByProject(projectUID string) map[string]Secret {
+	result := make(map[string]Secret)
+	for uid, s := range v.Secrets {
+		if s.ProjectUID == projectUID {
+			result[uid] = s
+		}
+	}
+	return result
+}
+
+// ListSecretsByEnvironment returns secrets filtered by EnvironmentUID.
+func (v *Vault) ListSecretsByEnvironment(envUID string) map[string]Secret {
+	result := make(map[string]Secret)
+	for uid, s := range v.Secrets {
+		if s.EnvironmentUID == envUID {
+			result[uid] = s
+		}
+	}
+	return result
+}
+
+// ListSecretsByProjectAndEnvironment returns secrets scoped to a specific project and environment.
+func (v *Vault) ListSecretsByProjectAndEnvironment(projectUID, envUID string) map[string]Secret {
+	result := make(map[string]Secret)
+	for uid, s := range v.Secrets {
+		if s.ProjectUID == projectUID && s.EnvironmentUID == envUID {
+			result[uid] = s
+		}
+	}
+	return result
+}
+
+// FindSecretByName finds a secret by name, optionally filtered by project and/or environment.
+// Returns (secret, uid, found).
+func (v *Vault) FindSecretByName(name string, projectUID, envUID string) (Secret, string, bool) {
+	for uid, s := range v.Secrets {
+		if s.Name != name {
+			continue
+		}
+		if s.ProjectUID != projectUID {
+			continue
+		}
+		if s.EnvironmentUID != envUID {
+			continue
+		}
+		return s, uid, true
+	}
+	return Secret{}, "", false
+}
+
+// UpdateSecret applies the updates function to the secret and sets UpdatedAt.
+func (v *Vault) UpdateSecret(uid string, updates func(*Secret)) bool {
+	s, ok := v.Secrets[uid]
+	if !ok {
+		return false
+	}
+	updates(&s)
+	s.UpdatedAt = time.Now()
+	v.Secrets[uid] = s
+	return true
+}
+
+// RemoveSecret removes a secret by UID.
+func (v *Vault) RemoveSecret(uid string) bool {
+	if _, ok := v.Secrets[uid]; !ok {
+		return false
+	}
+	delete(v.Secrets, uid)
+	return true
 }

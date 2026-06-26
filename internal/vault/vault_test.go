@@ -17,98 +17,135 @@ func testSalt(t *testing.T) []byte {
 	return salt
 }
 
-func TestVaultCRUDRoundtrip(t *testing.T) {
-	dir := t.TempDir()
+func testKey() []byte {
 	key := make([]byte, 32)
 	for i := range key {
 		key[i] = byte(i)
 	}
+	return key
+}
 
-	// Init vault
+func TestVaultCRUDRoundtrip(t *testing.T) {
+	dir := t.TempDir()
+	key := testKey()
+
 	if err := Init(dir, key, testSalt(t)); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 
-	// Open vault
 	v, err := Open(dir, key)
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
 
-	// Add secret
-	s := Secret{
-		Name:     "github",
-		Username: "user@example.com",
-		Password: "secret123",
-		URL:      "https://github.com",
-	}
-	id := v.Add(s)
+	// Add project
+	pUID := v.AddProject(Project{Name: "myapp", Description: "Test app"})
 
-	// Get secret
-	got, ok := v.Get(id)
+	// Add environment scoped to project
+	eUID := v.AddEnvironment(Environment{Name: "production", ProjectUID: pUID})
+
+	// Add secret scoped to env
+	sUID := v.AddSecret(Secret{Name: "db_url", ProjectUID: pUID, EnvironmentUID: eUID, Value: "postgres://localhost"})
+
+	// Verify project
+	p, ok := v.GetProject(pUID)
 	if !ok {
-		t.Fatalf("Get failed: secret not found")
+		t.Fatal("GetProject: not found")
 	}
-	if got.Name != s.Name {
-		t.Errorf("expected name %q, got %q", s.Name, got.Name)
-	}
-	if got.Password != s.Password {
-		t.Errorf("expected password %q, got %q", s.Password, got.Password)
+	if p.Name != "myapp" {
+		t.Errorf("expected project name %q, got %q", "myapp", p.Name)
 	}
 
-	// Save vault
+	// Verify environment
+	e, ok := v.GetEnvironment(eUID)
+	if !ok {
+		t.Fatal("GetEnvironment: not found")
+	}
+	if e.Name != "production" {
+		t.Errorf("expected env name %q, got %q", "production", e.Name)
+	}
+	if e.ProjectUID != pUID {
+		t.Errorf("expected env ProjectUID %q, got %q", pUID, e.ProjectUID)
+	}
+
+	// Verify secret
+	s, ok := v.GetSecret(sUID)
+	if !ok {
+		t.Fatal("GetSecret: not found")
+	}
+	if s.Value != "postgres://localhost" {
+		t.Errorf("expected secret value %q, got %q", "postgres://localhost", s.Value)
+	}
+
+	// Persist
 	if err := v.Save(dir, key); err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
 
-	// Re-open vault
+	// Re-open and verify all persisted
 	v2, err := Open(dir, key)
 	if err != nil {
 		t.Fatalf("Re-open failed: %v", err)
 	}
 
-	// Verify secret persisted
-	got2, ok := v2.Get(id)
-	if !ok {
-		t.Fatalf("Get after re-open failed: secret not found")
+	if _, ok := v2.GetProject(pUID); !ok {
+		t.Error("project not persisted")
 	}
-	if got2.Name != s.Name {
-		t.Errorf("expected name %q after re-open, got %q", s.Name, got2.Name)
+	if _, ok := v2.GetEnvironment(eUID); !ok {
+		t.Error("environment not persisted")
 	}
-
-	// List secrets
-	secrets := v2.List()
-	if len(secrets) != 1 {
-		t.Errorf("expected 1 secret, got %d", len(secrets))
+	if _, ok := v2.GetSecret(sUID); !ok {
+		t.Error("secret not persisted")
 	}
 
 	// Remove secret
-	if !v2.Remove(id) {
-		t.Error("Remove returned false, expected true")
+	if !v2.RemoveSecret(sUID) {
+		t.Error("RemoveSecret: expected true")
+	}
+	if _, ok := v2.GetSecret(sUID); ok {
+		t.Error("secret still exists after RemoveSecret")
 	}
 
-	// Verify removed
-	if _, ok := v2.Get(id); ok {
-		t.Error("secret still exists after Remove")
+	// Remove environment
+	if !v2.RemoveEnvironment(eUID) {
+		t.Error("RemoveEnvironment: expected true")
+	}
+	if _, ok := v2.GetEnvironment(eUID); ok {
+		t.Error("environment still exists after RemoveEnvironment")
 	}
 
-	// Save and verify persistence
+	// Remove project
+	if !v2.RemoveProject(pUID) {
+		t.Error("RemoveProject: expected true")
+	}
+	if _, ok := v2.GetProject(pUID); ok {
+		t.Error("project still exists after RemoveProject")
+	}
+
+	// Persist deletions
 	if err := v2.Save(dir, key); err != nil {
-		t.Fatalf("Save after remove failed: %v", err)
+		t.Fatalf("Save after removals failed: %v", err)
 	}
 
+	// Re-open and verify empty
 	v3, err := Open(dir, key)
 	if err != nil {
-		t.Fatalf("Re-open after remove failed: %v", err)
+		t.Fatalf("Re-open after removals failed: %v", err)
 	}
-	if len(v3.List()) != 0 {
-		t.Errorf("expected 0 secrets after remove, got %d", len(v3.List()))
+	if len(v3.Projects) != 0 {
+		t.Errorf("expected 0 projects, got %d", len(v3.Projects))
+	}
+	if len(v3.Environments) != 0 {
+		t.Errorf("expected 0 environments, got %d", len(v3.Environments))
+	}
+	if len(v3.Secrets) != 0 {
+		t.Errorf("expected 0 secrets, got %d", len(v3.Secrets))
 	}
 }
 
 func TestRemoveNonexistent(t *testing.T) {
 	dir := t.TempDir()
-	key := make([]byte, 32)
+	key := testKey()
 
 	if err := Init(dir, key, testSalt(t)); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -119,14 +156,20 @@ func TestRemoveNonexistent(t *testing.T) {
 		t.Fatalf("Open failed: %v", err)
 	}
 
-	if v.Remove("nonexistent") {
-		t.Error("Remove returned true for nonexistent ID")
+	if v.RemoveProject("nonexistent") {
+		t.Error("RemoveProject returned true for nonexistent UID")
+	}
+	if v.RemoveEnvironment("nonexistent") {
+		t.Error("RemoveEnvironment returned true for nonexistent UID")
+	}
+	if v.RemoveSecret("nonexistent") {
+		t.Error("RemoveSecret returned true for nonexistent UID")
 	}
 }
 
 func TestAtomicWrite(t *testing.T) {
 	dir := t.TempDir()
-	key := make([]byte, 32)
+	key := testKey()
 
 	if err := Init(dir, key, testSalt(t)); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -137,13 +180,15 @@ func TestAtomicWrite(t *testing.T) {
 		t.Fatalf("Open failed: %v", err)
 	}
 
-	v.Add(Secret{Name: "test", Username: "user", Password: "pass"})
+	pUID := v.AddProject(Project{Name: "test"})
+	eUID := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
+	v.AddSecret(Secret{Name: "key", ProjectUID: pUID, EnvironmentUID: eUID, Value: "secret"})
 
 	if err := v.Save(dir, key); err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
 
-	// Check that temp file doesn't exist
+	// Temp file should not exist after save
 	tmpPath := filepath.Join(dir, tmpFileName)
 	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
 		t.Error("temp file should not exist after Save")
@@ -152,13 +197,12 @@ func TestAtomicWrite(t *testing.T) {
 
 func TestInitAlreadyExists(t *testing.T) {
 	dir := t.TempDir()
-	key := make([]byte, 32)
+	key := testKey()
 
 	if err := Init(dir, key, testSalt(t)); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 
-	// Try to init again
 	err := Init(dir, key, testSalt(t))
 	if err != ErrVaultExists {
 		t.Errorf("expected ErrVaultExists, got %v", err)
@@ -167,7 +211,7 @@ func TestInitAlreadyExists(t *testing.T) {
 
 func TestOpenNotFound(t *testing.T) {
 	dir := t.TempDir()
-	key := make([]byte, 32)
+	key := testKey()
 
 	_, err := Open(dir, key)
 	if err != ErrVaultNotFound {
@@ -191,5 +235,225 @@ func TestOpenWrongKey(t *testing.T) {
 	_, err := Open(dir, key2)
 	if err == nil {
 		t.Error("expected error opening with wrong key")
+	}
+}
+
+func TestRemoveProjectCascades(t *testing.T) {
+	dir := t.TempDir()
+	key := testKey()
+
+	if err := Init(dir, key, testSalt(t)); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	v, err := Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+
+	pUID := v.AddProject(Project{Name: "p1"})
+	eUID := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
+	sUID := v.AddSecret(Secret{Name: "db", ProjectUID: pUID, EnvironmentUID: eUID, Value: "pass"})
+
+	// Remove project
+	if !v.RemoveProject(pUID) {
+		t.Fatal("RemoveProject returned false")
+	}
+
+	// Verify cascade
+	if _, ok := v.GetProject(pUID); ok {
+		t.Error("project still exists")
+	}
+	if _, ok := v.GetEnvironment(eUID); ok {
+		t.Error("environment still exists after project removed")
+	}
+	if _, ok := v.GetSecret(sUID); ok {
+		t.Error("secret still exists after project removed")
+	}
+}
+
+func TestRemoveEnvironmentCascades(t *testing.T) {
+	dir := t.TempDir()
+	key := testKey()
+
+	if err := Init(dir, key, testSalt(t)); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	v, err := Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+
+	pUID := v.AddProject(Project{Name: "p1"})
+	eUID := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
+	sUID := v.AddSecret(Secret{Name: "db", ProjectUID: pUID, EnvironmentUID: eUID, Value: "pass"})
+
+	// Remove environment
+	if !v.RemoveEnvironment(eUID) {
+		t.Fatal("RemoveEnvironment returned false")
+	}
+
+	// Verify cascade
+	if _, ok := v.GetEnvironment(eUID); ok {
+		t.Error("environment still exists")
+	}
+	if _, ok := v.GetSecret(sUID); ok {
+		t.Error("secret still exists after environment removed")
+	}
+	// Project should still exist
+	if _, ok := v.GetProject(pUID); !ok {
+		t.Error("project should not have been removed")
+	}
+}
+
+func TestListSecretsByProject(t *testing.T) {
+	dir := t.TempDir()
+	key := testKey()
+
+	if err := Init(dir, key, testSalt(t)); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	v, err := Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+
+	p1UID := v.AddProject(Project{Name: "p1"})
+	p2UID := v.AddProject(Project{Name: "p2"})
+
+	v.AddSecret(Secret{Name: "a", ProjectUID: p1UID, Value: "1"})
+	v.AddSecret(Secret{Name: "b", ProjectUID: p1UID, Value: "2"})
+	v.AddSecret(Secret{Name: "c", ProjectUID: p2UID, Value: "3"})
+
+	p1Secrets := v.ListSecretsByProject(p1UID)
+	if len(p1Secrets) != 2 {
+		t.Errorf("expected 2 secrets for p1, got %d", len(p1Secrets))
+	}
+
+	p2Secrets := v.ListSecretsByProject(p2UID)
+	if len(p2Secrets) != 1 {
+		t.Errorf("expected 1 secret for p2, got %d", len(p2Secrets))
+	}
+
+	// Empty project
+	none := v.ListSecretsByProject("nonexistent")
+	if len(none) != 0 {
+		t.Errorf("expected 0 secrets for nonexistent project, got %d", len(none))
+	}
+}
+
+func TestFindSecretByName(t *testing.T) {
+	dir := t.TempDir()
+	key := testKey()
+
+	if err := Init(dir, key, testSalt(t)); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	v, err := Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+
+	pUID := v.AddProject(Project{Name: "p1"})
+	eUID := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
+
+	// Standalone secret (no project, no env)
+	v.AddSecret(Secret{Name: "standalone", Value: "s"})
+
+	// Project-scoped secret
+	v.AddSecret(Secret{Name: "scoped", ProjectUID: pUID, Value: "p"})
+
+	// Environment-scoped secret
+	v.AddSecret(Secret{Name: "scoped", ProjectUID: pUID, EnvironmentUID: eUID, Value: "e"})
+
+	// Find standalone
+	_, _, found := v.FindSecretByName("standalone", "", "")
+	if !found {
+		t.Error("expected to find standalone secret")
+	}
+
+	// Find project-scoped
+	_, _, found = v.FindSecretByName("scoped", pUID, "")
+	if !found {
+		t.Error("expected to find project-scoped secret")
+	}
+
+	// Find env-scoped
+	_, _, found = v.FindSecretByName("scoped", pUID, eUID)
+	if !found {
+		t.Error("expected to find env-scoped secret")
+	}
+
+	// Wrong project
+	_, _, found = v.FindSecretByName("scoped", "bad", "")
+	if found {
+		t.Error("should not find secret with wrong project filter")
+	}
+
+	// Wrong env
+	_, _, found = v.FindSecretByName("scoped", pUID, "bad")
+	if found {
+		t.Error("should not find secret with wrong env filter")
+	}
+
+	// Nonexistent name
+	_, _, found = v.FindSecretByName("nonexistent", "", "")
+	if found {
+		t.Error("should not find nonexistent secret")
+	}
+}
+
+func TestStandaloneSecret(t *testing.T) {
+	dir := t.TempDir()
+	key := testKey()
+
+	if err := Init(dir, key, testSalt(t)); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	v, err := Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+
+	sUID := v.AddSecret(Secret{Name: "api_key", Value: "abc123"})
+
+	// Verify in memory
+	s, ok := v.GetSecret(sUID)
+	if !ok {
+		t.Fatal("GetSecret: not found")
+	}
+	if s.Name != "api_key" || s.Value != "abc123" {
+		t.Errorf("unexpected secret: %+v", s)
+	}
+	if s.ProjectUID != "" || s.EnvironmentUID != "" {
+		t.Error("standalone secret should have empty project/env UIDs")
+	}
+
+	// Persist and re-open
+	if err := v.Save(dir, key); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	v2, err := Open(dir, key)
+	if err != nil {
+		t.Fatalf("Re-open failed: %v", err)
+	}
+
+	s2, ok := v2.GetSecret(sUID)
+	if !ok {
+		t.Fatal("standalone secret not persisted")
+	}
+	if s2.Value != "abc123" {
+		t.Errorf("expected value %q, got %q", "abc123", s2.Value)
+	}
+
+	// FindSecretByName should find it
+	_, _, found := v2.FindSecretByName("api_key", "", "")
+	if !found {
+		t.Error("FindSecretByName did not find standalone secret")
 	}
 }
