@@ -13,7 +13,7 @@ var envCmd = &cobra.Command{
 	Use:   "env",
 	Short: "Manage environments within a project",
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		if cmd.Name() == "list" {
+		if cmd == envListCmd {
 			return nil
 		}
 		projectName, _ := cmd.Flags().GetString("project")
@@ -56,7 +56,7 @@ var envAddCmd = &cobra.Command{
 			}
 			return err
 		}
-		if err := saveVault(v, vaultDir, key); err != nil {
+		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Environment '%s' added (UID: %s)\n", name, shortUID(uid))
@@ -89,6 +89,11 @@ var envEditCmd = &cobra.Command{
 		if !found {
 			return fmt.Errorf("environment '%s' not found in project '%s'", name, projectName)
 		}
+		if cmd.Flags().Changed("name") && newName != name {
+			if _, _, exists := findEnvironmentByName(v, newName, projectUID); exists {
+				return fmt.Errorf("environment '%s' already exists in project '%s'", newName, projectName)
+			}
+		}
 		v.UpdateEnvironment(uid, func(e *vault.Environment) {
 			if cmd.Flags().Changed("name") {
 				e.Name = newName
@@ -100,7 +105,7 @@ var envEditCmd = &cobra.Command{
 				e.Notes = notes
 			}
 		})
-		if err := saveVault(v, vaultDir, key); err != nil {
+		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Environment '%s' updated.\n", name)
@@ -141,7 +146,7 @@ var envRemoveCmd = &cobra.Command{
 		if !v.RemoveEnvironment(uid) {
 			return errors.New("could not remove environment")
 		}
-		if err := saveVault(v, vaultDir, key); err != nil {
+		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Environment '%s' removed.\n", name)
@@ -177,7 +182,7 @@ var envListCmd = &cobra.Command{
 			fmt.Fprintln(cmd.OutOrStdout(), "  (none)")
 			return nil
 		}
-		keys := sortedEnvKeys(envs)
+		keys := sortedKeysByName(envs, func(e vault.Environment) string { return e.Name })
 		for _, uid := range keys {
 			e := envs[uid]
 			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s (UID: %s)\n", e.Name, shortUID(uid))
@@ -222,7 +227,7 @@ var envShowCmd = &cobra.Command{
 		envSecrets := v.ListSecretsByProjectAndEnvironment(p.UID, uid)
 		fmt.Fprintf(cmd.OutOrStdout(), "\nSecrets (%d):\n", len(envSecrets))
 		if len(envSecrets) > 0 {
-			secKeys := sortedSecretKeys(envSecrets)
+			secKeys := sortedKeysByName(envSecrets, func(s vault.Secret) string { return s.Name })
 			for _, sUID := range secKeys {
 				s := envSecrets[sUID]
 				fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", s.Name, shortUID(sUID))

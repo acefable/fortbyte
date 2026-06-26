@@ -2,6 +2,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -27,6 +28,10 @@ var readPasswordFn = func() (string, error) {
 	}
 	return string(pw), nil
 }
+
+// warnOut receives non-fatal warning messages (keyring store failures, etc.).
+// Override in tests to suppress or capture.
+var warnOut io.Writer = os.Stderr
 
 var rootCmd = &cobra.Command{
 	Use:   "gokeep",

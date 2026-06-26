@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/youruser/gokeep/internal/crypto"
@@ -28,12 +27,12 @@ func openVault(dir string, promptOut io.Writer, warnOut io.Writer) (*vault.Vault
 }
 
 // saveVault writes the vault and touches the session. Returns error.
-func saveVault(v *vault.Vault, dir string, key []byte) error {
+func saveVault(v *vault.Vault, dir string, key []byte, warnOut io.Writer) error {
 	if err := v.Save(dir, key); err != nil {
 		return fmt.Errorf("save vault: %w", err)
 	}
 	if err := session.Touch(dir); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not update session: %v\n", err)
+		fmt.Fprintf(warnOut, "Warning: could not update session: %v\n", err)
 	}
 	return nil
 }

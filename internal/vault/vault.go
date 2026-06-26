@@ -26,10 +26,10 @@ var (
 )
 
 const (
-	vaultFileName = "vault.enc"
-	tmpFileName   = "vault.enc.tmp"
-	lockFileName  = "vault.lock"
-	vaultVersion  = 1
+	FileName     = "vault.enc"
+	tmpFileName  = "vault.enc.tmp"
+	lockFileName = "vault.lock"
+	vaultVersion = 1
 )
 
 // Project represents a logical grouping of environments and secrets.
@@ -127,7 +127,7 @@ func (l *lock) release() {
 
 // Init creates a new vault at dir/vault.enc with the given master key and salt.
 func Init(dir string, key []byte, salt []byte) error {
-	vaultPath := filepath.Join(dir, vaultFileName)
+	vaultPath := filepath.Join(dir, FileName)
 
 	// Check if vault already exists
 	if _, err := os.Stat(vaultPath); err == nil {
@@ -197,7 +197,7 @@ func Init(dir string, key []byte, salt []byte) error {
 
 // Open reads and decrypts the vault from dir/vault.enc.
 func Open(dir string, key []byte) (*Vault, error) {
-	vaultPath := filepath.Join(dir, vaultFileName)
+	vaultPath := filepath.Join(dir, FileName)
 
 	// Read vault file
 	data, err := os.ReadFile(vaultPath)
@@ -252,7 +252,7 @@ func (v *Vault) Save(dir string, key []byte) error {
 	}
 	defer lk.release()
 
-	vaultPath := filepath.Join(dir, vaultFileName)
+	vaultPath := filepath.Join(dir, FileName)
 
 	// Read existing vault file to get salt
 	data, err := os.ReadFile(vaultPath)
@@ -326,7 +326,7 @@ func writeAtomic(path string, data []byte) error {
 
 // GetSalt reads the salt from the vault file.
 func GetSalt(dir string) ([]byte, error) {
-	vaultPath := filepath.Join(dir, vaultFileName)
+	vaultPath := filepath.Join(dir, FileName)
 
 	data, err := os.ReadFile(vaultPath)
 	if err != nil {
@@ -366,9 +366,13 @@ func (v *Vault) GetProject(uid string) (Project, bool) {
 	return p, ok
 }
 
-// ListProjects returns all projects.
+// ListProjects returns a defensive copy of all projects.
 func (v *Vault) ListProjects() map[string]Project {
-	return v.Projects
+	result := make(map[string]Project, len(v.Projects))
+	for k, val := range v.Projects {
+		result[k] = val
+	}
+	return result
 }
 
 // UpdateProject applies the updates function to the project and sets UpdatedAt.
@@ -440,9 +444,13 @@ func (v *Vault) GetEnvironment(uid string) (Environment, bool) {
 	return e, ok
 }
 
-// ListEnvironments returns all environments.
+// ListEnvironments returns a defensive copy of all environments.
 func (v *Vault) ListEnvironments() map[string]Environment {
-	return v.Environments
+	result := make(map[string]Environment, len(v.Environments))
+	for k, val := range v.Environments {
+		result[k] = val
+	}
+	return result
 }
 
 // ListEnvironmentsByProject returns environments filtered by ProjectUID.
@@ -514,9 +522,13 @@ func (v *Vault) GetSecret(uid string) (Secret, bool) {
 	return s, ok
 }
 
-// ListSecrets returns all secrets.
+// ListSecrets returns a defensive copy of all secrets.
 func (v *Vault) ListSecrets() map[string]Secret {
-	return v.Secrets
+	result := make(map[string]Secret, len(v.Secrets))
+	for k, val := range v.Secrets {
+		result[k] = val
+	}
+	return result
 }
 
 // ListSecretsByProject returns secrets filtered by ProjectUID.

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/youruser/gokeep/internal/session"
+	"github.com/youruser/gokeep/internal/vault"
 )
 
 var listCmd = &cobra.Command{
@@ -32,18 +33,18 @@ var listCmd = &cobra.Command{
 		}
 		if len(projects) > 0 {
 			fmt.Fprintln(cmd.OutOrStdout(), "Projects:")
-			projectKeys := sortedProjectKeys(projects)
+			projectKeys := sortedKeysByName(projects, func(p vault.Project) string { return p.Name })
 			for _, pUID := range projectKeys {
 				p := projects[pUID]
 				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", p.Name)
 				envs := v.ListEnvironmentsByProject(pUID)
 				if len(envs) > 0 {
-					envKeys := sortedEnvKeys(envs)
+					envKeys := sortedKeysByName(envs, func(e vault.Environment) string { return e.Name })
 					for _, eUID := range envKeys {
 						e := envs[eUID]
 						fmt.Fprintf(cmd.OutOrStdout(), "    %s\n", e.Name)
 						envSecrets := v.ListSecretsByProjectAndEnvironment(pUID, eUID)
-						secKeys := sortedSecretKeys(envSecrets)
+						secKeys := sortedKeysByName(envSecrets, func(s vault.Secret) string { return s.Name })
 						for _, sUID := range secKeys {
 							s := envSecrets[sUID]
 							fmt.Fprintf(cmd.OutOrStdout(), "      %s (UID: %s)\n", s.Name, shortUID(sUID))

@@ -37,20 +37,9 @@ var secretAddCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var projectUID, envUID string
-		if projectName != "" {
-			_, pUID, found := findProjectByName(v, projectName)
-			if !found {
-				return fmt.Errorf("project '%s' not found", projectName)
-			}
-			projectUID = pUID
-		}
-		if envName != "" {
-			_, eUID, found := findEnvironmentByName(v, envName, projectUID)
-			if !found {
-				return fmt.Errorf("environment '%s' not found in project '%s'", envName, projectName)
-			}
-			envUID = eUID
+		projectUID, envUID, err := resolveScope(v, projectName, envName)
+		if err != nil {
+			return err
 		}
 		// ponytail: pre-check the duplicate BEFORE prompting for value/notes/url.
 		// The vault-layer ErrDuplicateName check in AddSecret below is defense-in-depth
@@ -101,7 +90,7 @@ var secretAddCmd = &cobra.Command{
 			}
 			return err
 		}
-		if err := saveVault(v, vaultDir, key); err != nil {
+		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Secret '%s' added (UID: %s)\n", name, shortUID(uid))
@@ -124,20 +113,9 @@ var secretEditCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var projectUID, envUID string
-		if projectName != "" {
-			_, pUID, found := findProjectByName(v, projectName)
-			if !found {
-				return fmt.Errorf("project '%s' not found", projectName)
-			}
-			projectUID = pUID
-		}
-		if envName != "" {
-			_, eUID, found := findEnvironmentByName(v, envName, projectUID)
-			if !found {
-				return fmt.Errorf("environment '%s' not found in project '%s'", envName, projectName)
-			}
-			envUID = eUID
+		projectUID, envUID, err := resolveScope(v, projectName, envName)
+		if err != nil {
+			return err
 		}
 		_, uid, found := v.FindSecretByName(name, projectUID, envUID)
 		if !found {
@@ -157,7 +135,7 @@ var secretEditCmd = &cobra.Command{
 				s.Notes = notes
 			}
 		})
-		if err := saveVault(v, vaultDir, key); err != nil {
+		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Secret '%s' updated.\n", name)
@@ -180,20 +158,9 @@ var secretRemoveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var projectUID, envUID string
-		if projectName != "" {
-			_, pUID, found := findProjectByName(v, projectName)
-			if !found {
-				return fmt.Errorf("project '%s' not found", projectName)
-			}
-			projectUID = pUID
-		}
-		if envName != "" {
-			_, eUID, found := findEnvironmentByName(v, envName, projectUID)
-			if !found {
-				return fmt.Errorf("environment '%s' not found in project '%s'", envName, projectName)
-			}
-			envUID = eUID
+		projectUID, envUID, err := resolveScope(v, projectName, envName)
+		if err != nil {
+			return err
 		}
 		_, uid, found := v.FindSecretByName(name, projectUID, envUID)
 		if !found {
@@ -210,7 +177,7 @@ var secretRemoveCmd = &cobra.Command{
 		if !v.RemoveSecret(uid) {
 			return errors.New("could not remove secret")
 		}
-		if err := saveVault(v, vaultDir, key); err != nil {
+		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Secret '%s' removed.\n", name)

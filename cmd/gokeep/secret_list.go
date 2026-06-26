@@ -23,20 +23,9 @@ var secretListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var projectUID, envUID string
-		if projectName != "" {
-			_, pUID, found := findProjectByName(v, projectName)
-			if !found {
-				return fmt.Errorf("project '%s' not found", projectName)
-			}
-			projectUID = pUID
-		}
-		if envName != "" {
-			_, eUID, found := findEnvironmentByName(v, envName, projectUID)
-			if !found {
-				return fmt.Errorf("environment '%s' not found in project '%s'", envName, projectName)
-			}
-			envUID = eUID
+		projectUID, envUID, err := resolveScope(v, projectName, envName)
+		if err != nil {
+			return err
 		}
 		var secrets map[string]vault.Secret
 		switch {
@@ -51,7 +40,7 @@ var secretListCmd = &cobra.Command{
 			fmt.Fprintln(cmd.OutOrStdout(), "No secrets.")
 			return nil
 		}
-		keys := sortedSecretKeys(secrets)
+		keys := sortedKeysByName(secrets, func(s vault.Secret) string { return s.Name })
 		for _, uid := range keys {
 			s := secrets[uid]
 			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s (UID: %s)\n", s.Name, shortUID(uid))
@@ -75,20 +64,9 @@ var secretRevealCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var projectUID, envUID string
-		if projectName != "" {
-			_, pUID, found := findProjectByName(v, projectName)
-			if !found {
-				return fmt.Errorf("project '%s' not found", projectName)
-			}
-			projectUID = pUID
-		}
-		if envName != "" {
-			_, eUID, found := findEnvironmentByName(v, envName, projectUID)
-			if !found {
-				return fmt.Errorf("environment '%s' not found in project '%s'", envName, projectName)
-			}
-			envUID = eUID
+		projectUID, envUID, err := resolveScope(v, projectName, envName)
+		if err != nil {
+			return err
 		}
 		s, uid, found := v.FindSecretByName(name, projectUID, envUID)
 		if !found {
@@ -137,20 +115,9 @@ var secretShowCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var projectUID, envUID string
-		if projectName != "" {
-			_, pUID, found := findProjectByName(v, projectName)
-			if !found {
-				return fmt.Errorf("project '%s' not found", projectName)
-			}
-			projectUID = pUID
-		}
-		if envName != "" {
-			_, eUID, found := findEnvironmentByName(v, envName, projectUID)
-			if !found {
-				return fmt.Errorf("environment '%s' not found in project '%s'", envName, projectName)
-			}
-			envUID = eUID
+		projectUID, envUID, err := resolveScope(v, projectName, envName)
+		if err != nil {
+			return err
 		}
 		s, uid, found := v.FindSecretByName(name, projectUID, envUID)
 		if !found {

@@ -21,7 +21,7 @@ var initCmd = &cobra.Command{
 		if vaultDir == "" {
 			return errors.New("cannot determine home directory")
 		}
-		fmt.Fprint(cmd.ErrOrStderr(), "Enter master password (min 8 chars): ")
+		fmt.Fprintf(cmd.ErrOrStderr(), "Enter master password (min %d chars): ", minPasswordLen)
 		password, err := readPasswordFn()
 		if err != nil {
 			return fmt.Errorf("read password: %w", err)
@@ -37,14 +37,14 @@ var initCmd = &cobra.Command{
 			return err
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), "Vault created successfully!")
-		fmt.Fprintf(cmd.OutOrStdout(), "Location: %s\n", filepath.Join(vaultDir, "vault.enc"))
+		fmt.Fprintf(cmd.OutOrStdout(), "Location: %s\n", filepath.Join(vaultDir, vault.FileName))
 		return nil
 	},
 }
 
 // runInit is the core init logic. Called by initCmd.RunE and by tests.
 func runInit(dir, password, confirm string) error {
-	vaultPath := filepath.Join(dir, "vault.enc")
+	vaultPath := filepath.Join(dir, vault.FileName)
 	if _, err := os.Stat(vaultPath); err == nil {
 		return fmt.Errorf("vault already exists at %s", vaultPath)
 	}
@@ -66,7 +66,7 @@ func runInit(dir, password, confirm string) error {
 		return fmt.Errorf("create vault: %w", err)
 	}
 	if err := session.StorePassword(dir, password); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not store session: %v\n", err)
+		fmt.Fprintf(warnOut, "Warning: could not store session: %v\n", err)
 	}
 	return nil
 }

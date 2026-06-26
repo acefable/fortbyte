@@ -1,11 +1,13 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/youruser/gokeep/internal/session"
 	"github.com/youruser/gokeep/internal/vault"
 )
 
@@ -16,6 +18,19 @@ func mockReadPassword(t *testing.T, password string, err error) {
 	orig := readPasswordFn
 	readPasswordFn = func() (string, error) { return password, err }
 	t.Cleanup(func() { readPasswordFn = orig })
+}
+
+// stubSession overrides session.StorePassword/LoadPassword/Clear for tests
+// that would otherwise touch the host OS keyring.
+func stubSession(t *testing.T) {
+	t.Helper()
+	origStore, origLoad, origClear := session.StorePassword, session.LoadPassword, session.Clear
+	session.StorePassword = func(string, string) error { return nil }
+	session.LoadPassword = func() (string, error) { return "stub-password-1234", nil }
+	session.Clear = func(string) error { return nil }
+	t.Cleanup(func() {
+		session.StorePassword, session.LoadPassword, session.Clear = origStore, origLoad, origClear
+	})
 }
 
 // --- helper tests ---
@@ -65,7 +80,7 @@ func TestSortedProjectKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := sortedProjectKeys(tt.projects)
+			got := sortedKeysByName(tt.projects, func(p vault.Project) string { return p.Name })
 			if len(got) != tt.wantLen {
 				t.Errorf("len = %d, want %d", len(got), tt.wantLen)
 			}
@@ -99,7 +114,7 @@ func TestSortedEnvKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := sortedEnvKeys(tt.envs)
+			got := sortedKeysByName(tt.envs, func(e vault.Environment) string { return e.Name })
 			if len(got) != tt.wantLen {
 				t.Errorf("len = %d, want %d", len(got), tt.wantLen)
 			}
@@ -132,7 +147,7 @@ func TestSortedSecretKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := sortedSecretKeys(tt.secrets)
+			got := sortedKeysByName(tt.secrets, func(s vault.Secret) string { return s.Name })
 			if len(got) != tt.wantLen {
 				t.Errorf("len = %d, want %d", len(got), tt.wantLen)
 			}
@@ -402,9 +417,9 @@ func TestSecretAddFlags(t *testing.T) {
 }
 
 func TestEnvAddRequiresProject(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
 	rootCmd.SetArgs([]string{"env", "add", "foo"})
 	err := rootCmd.Execute()
-	rootCmd.SetArgs(nil)
 	if err == nil {
 		t.Fatal("expected error running env add without --project")
 	}
@@ -414,9 +429,9 @@ func TestEnvAddRequiresProject(t *testing.T) {
 }
 
 func TestSecretEnvRequiresProject(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
 	rootCmd.SetArgs([]string{"secret", "list", "--env", "prod"})
 	err := rootCmd.Execute()
-	rootCmd.SetArgs(nil)
 	if err == nil {
 		t.Fatal("expected error running secret list --env without --project")
 	}
@@ -426,29 +441,28 @@ func TestSecretEnvRequiresProject(t *testing.T) {
 }
 
 func TestProjectAddRequiresName(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
 	rootCmd.SetArgs([]string{"project", "add"})
 	err := rootCmd.Execute()
-	rootCmd.SetArgs(nil)
 	if err == nil {
 		t.Fatal("expected error for missing name argument")
 	}
 }
 
 func TestProjectRemoveRequiresName(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
 	rootCmd.SetArgs([]string{"project", "remove"})
 	err := rootCmd.Execute()
-	rootCmd.SetArgs(nil)
 	if err == nil {
 		t.Fatal("expected error for missing name argument")
 	}
 }
 
 func TestEnvListAllowsNoArgs(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
 	mockReadPassword(t, "test-password-1234", nil)
 	rootCmd.SetArgs([]string{"env", "list"})
 	err := rootCmd.Execute()
-	rootCmd.SetArgs(nil)
-	// It'll fail because vault doesn't exist, but arg validation passed
 	if err == nil {
 		t.Skip("vault exists in test environment — ok")
 	}
@@ -461,8 +475,11 @@ func TestEnvListAllowsNoArgs(t *testing.T) {
 // --- init tests ---
 
 func TestInitRejectsExistingVault(t *testing.T) {
+	stubSession(t)
+	warnOut = io.Discard
+	t.Cleanup(func() { warnOut = os.Stderr })
 	dir := t.TempDir()
-	vaultPath := filepath.Join(dir, "vault.enc")
+	vaultPath := filepath.Join(dir, vault.FileName)
 	if err := os.WriteFile(vaultPath, []byte("fake"), 0600); err != nil {
 		t.Fatalf("create fake vault: %v", err)
 	}
@@ -476,6 +493,9 @@ func TestInitRejectsExistingVault(t *testing.T) {
 }
 
 func TestInitValidatesPasswordLength(t *testing.T) {
+	stubSession(t)
+	warnOut = io.Discard
+	t.Cleanup(func() { warnOut = os.Stderr })
 	dir := t.TempDir()
 	tests := []struct {
 		name     string
@@ -484,7 +504,7 @@ func TestInitValidatesPasswordLength(t *testing.T) {
 		wantErr  bool
 	}{
 		{"too short", "short", "short", true},
-		{"min length", "12345678", "12345678", false}, // 8 chars = OK (will fail on storePassword but not length)
+		{"min length", "12345678", "12345678", false}, // 8 chars = OK
 		{"too long", strings.Repeat("a", 1025), strings.Repeat("a", 1025), true},
 		{"max length", strings.Repeat("a", 1024), strings.Repeat("a", 1024), false}, // 1024 = OK
 	}
@@ -500,17 +520,16 @@ func TestInitValidatesPasswordLength(t *testing.T) {
 				t.Error("expected error but got nil")
 			}
 			if !tt.wantErr && err != nil {
-				// Min/max length valid passwords still fail on storePassword
-				// (keyring not available in tests). That's expected.
-				if !strings.Contains(err.Error(), "store password") && !strings.Contains(err.Error(), "password must") {
-					t.Errorf("expected store-password or length error, got: %v", err)
-				}
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}
 }
 
 func TestInitRejectsMismatchedConfirm(t *testing.T) {
+	stubSession(t)
+	warnOut = io.Discard
+	t.Cleanup(func() { warnOut = os.Stderr })
 	dir := t.TempDir()
 	err := runInit(dir, "password1234", "different1234")
 	if err == nil {
@@ -522,16 +541,15 @@ func TestInitRejectsMismatchedConfirm(t *testing.T) {
 }
 
 func TestInitCreatesVault(t *testing.T) {
+	stubSession(t)
+	warnOut = io.Discard
+	t.Cleanup(func() { warnOut = os.Stderr })
 	dir := t.TempDir()
-	// Override readPasswordFn is not needed for runInit since it takes password strings directly.
-	// But runInit calls session.StorePassword which uses the keyring.
-	// In CI/test, keyring may fail. We test that vault.Init succeeds.
-	// If session.StorePassword fails, runInit prints a warning but still returns nil.
 	if err := runInit(dir, "password1234", "password1234"); err != nil {
 		t.Fatalf("runInit failed: %v", err)
 	}
 
-	vaultPath := filepath.Join(dir, "vault.enc")
+	vaultPath := filepath.Join(dir, vault.FileName)
 	if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
 		t.Fatal("vault file was not created")
 	}

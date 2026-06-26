@@ -22,7 +22,7 @@ var statusCmd = &cobra.Command{
 		if vaultDir == "" {
 			return errors.New("cannot determine home directory")
 		}
-		vaultPath := filepath.Join(vaultDir, "vault.enc")
+		vaultPath := filepath.Join(vaultDir, vault.FileName)
 		sessionPath := filepath.Join(vaultDir, "session")
 
 		fmt.Fprintf(cmd.OutOrStdout(), "Vault:   %s\n", vaultPath)
@@ -58,8 +58,8 @@ var statusCmd = &cobra.Command{
 		fmt.Fprintln(cmd.OutOrStdout(), "State:   unlocked")
 		fmt.Fprintf(cmd.OutOrStdout(), "Expires: in %s\n", remaining.Truncate(time.Second))
 
-		// ponytail: degraded gracefully — corrupted vault or keyring miss shouldn't hide
-		// the state/expiry info we already showed. Same pattern as LoadPassword above.
+		// If the vault or keyring is unavailable here, still show what we know
+		// (state/expiry). Same graceful-degrade pattern as LoadPassword above.
 		fmt.Fprint(cmd.OutOrStdout(), "Counts:  ")
 		password, err := session.LoadPassword()
 		if err != nil {

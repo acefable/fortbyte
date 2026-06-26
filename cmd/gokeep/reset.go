@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/youruser/gokeep/internal/session"
+	"github.com/youruser/gokeep/internal/vault"
 )
 
 var resetCmd = &cobra.Command{
@@ -20,7 +21,7 @@ var resetCmd = &cobra.Command{
 		if vaultDir == "" {
 			return errors.New("cannot determine home directory")
 		}
-		vaultPath := filepath.Join(vaultDir, "vault.enc")
+		vaultPath := filepath.Join(vaultDir, vault.FileName)
 		if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
 			return fmt.Errorf("no vault found at %s", vaultPath)
 		}
@@ -45,11 +46,6 @@ var resetCmd = &cobra.Command{
 		}
 		if err := os.Remove(vaultPath); err != nil {
 			return fmt.Errorf("delete vault: %w", err)
-		}
-		sessionPath := filepath.Join(vaultDir, "session")
-		if err := os.Remove(sessionPath); err != nil && !os.IsNotExist(err) {
-			//nolint:errcheck // CLI output — write to stderr failure is non-recoverable
-			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not remove session: %v\n", err)
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), "Vault deleted successfully. All secrets have been removed.")
 		return nil

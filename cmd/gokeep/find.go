@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/youruser/gokeep/internal/vault"
 )
 
@@ -22,4 +24,25 @@ func findEnvironmentByName(v *vault.Vault, name, projectUID string) (vault.Envir
 		}
 	}
 	return vault.Environment{}, "", false
+}
+
+// resolveScope maps projectName/envName to UIDs, returning user-facing errors
+// when not found. Pass empty strings to skip a lookup.
+func resolveScope(v *vault.Vault, projectName, envName string) (string, string, error) {
+	var projectUID, envUID string
+	if projectName != "" {
+		_, pUID, found := findProjectByName(v, projectName)
+		if !found {
+			return "", "", fmt.Errorf("project '%s' not found", projectName)
+		}
+		projectUID = pUID
+	}
+	if envName != "" {
+		_, eUID, found := findEnvironmentByName(v, envName, projectUID)
+		if !found {
+			return "", "", fmt.Errorf("environment '%s' not found in project '%s'", envName, projectName)
+		}
+		envUID = eUID
+	}
+	return projectUID, envUID, nil
 }

@@ -40,8 +40,6 @@ linters:
     - varnamelen    # variable name length
 
 linters-settings:
-  gocyclo:
-    min-complexity: 15
   gocognit:
     min-complexity: 20
   gocritic:
@@ -91,7 +89,6 @@ issues:
         - errcheck
         - gosec
         - gocognit
-        - gocyclo
     # Generated files
     - path: \.pb\.go$
       linters:

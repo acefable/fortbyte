@@ -42,7 +42,7 @@ var projectAddCmd = &cobra.Command{
 			}
 			return err
 		}
-		if err := saveVault(v, vaultDir, key); err != nil {
+		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Project '%s' added (UID: %s)\n", name, shortUID(uid))
@@ -71,6 +71,11 @@ var projectEditCmd = &cobra.Command{
 		if !found {
 			return fmt.Errorf("project '%s' not found", name)
 		}
+		if cmd.Flags().Changed("name") && newName != name {
+			if _, _, exists := findProjectByName(v, newName); exists {
+				return fmt.Errorf("project '%s' already exists", newName)
+			}
+		}
 		v.UpdateProject(uid, func(p *vault.Project) {
 			if cmd.Flags().Changed("name") {
 				p.Name = newName
@@ -85,7 +90,7 @@ var projectEditCmd = &cobra.Command{
 				p.Notes = notes
 			}
 		})
-		if err := saveVault(v, vaultDir, key); err != nil {
+		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Project '%s' updated.\n", name)
@@ -121,7 +126,7 @@ var projectRemoveCmd = &cobra.Command{
 		if !v.RemoveProject(uid) {
 			return errors.New("could not remove project")
 		}
-		if err := saveVault(v, vaultDir, key); err != nil {
+		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Project '%s' removed.\n", name)
@@ -145,7 +150,7 @@ var projectListCmd = &cobra.Command{
 			fmt.Fprintln(cmd.OutOrStdout(), "No projects.")
 			return nil
 		}
-		keys := sortedProjectKeys(projects)
+		keys := sortedKeysByName(projects, func(p vault.Project) string { return p.Name })
 		for _, uid := range keys {
 			p := projects[uid]
 			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s (UID: %s)\n", p.Name, shortUID(uid))
@@ -187,7 +192,7 @@ var projectShowCmd = &cobra.Command{
 		envs := v.ListEnvironmentsByProject(uid)
 		fmt.Fprintf(cmd.OutOrStdout(), "\nEnvironments (%d):\n", len(envs))
 		if len(envs) > 0 {
-			envKeys := sortedEnvKeys(envs)
+			envKeys := sortedKeysByName(envs, func(e vault.Environment) string { return e.Name })
 			for _, eUID := range envKeys {
 				e := envs[eUID]
 				fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", e.Name, shortUID(eUID))

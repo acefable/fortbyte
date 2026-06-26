@@ -44,47 +44,45 @@ gokeep init
 
 Creates `~/.gokeep/vault.enc` and prompts for a master password (min 8 characters).
 
-### Add a secret
+### Manage projects
 
 ```bash
-gokeep add <name>
+gokeep project add <name>       # Add a new project
+gokeep project edit <name>      # Edit a project
+gokeep project remove <name>    # Remove a project (cascading delete)
+gokeep project list             # List all projects
+gokeep project show <name>      # Show project details
 ```
 
-Prompts interactively for username, password, URL (optional), and notes (optional).
-
-### Retrieve a secret
+### Manage environments
 
 ```bash
-gokeep get <name>
+gokeep env add <name> --project <name>      # Add an environment to a project
+gokeep env edit <name> --project <name>     # Edit an environment
+gokeep env remove <name> --project <name>   # Remove an environment
+gokeep env list [--project <name>]          # List environments (optionally filtered by project)
+gokeep env show <name> --project <name>     # Show environment details
 ```
 
-### List all secrets
+### Manage secrets
 
 ```bash
-gokeep list
+gokeep secret add <name> --project <name> [--env <name>]      # Add a secret
+gokeep secret edit <name> --project <name> [--env <name>]     # Edit a secret
+gokeep secret remove <name> --project <name> [--env <name>]   # Remove a secret
+gokeep secret list [--project <name>] [--env <name>]          # List secrets
+gokeep secret reveal <name> --project <name> [--env <name>]   # Reveal a secret's value
+gokeep secret show <name> --project <name> [--env <name>]     # Show secret metadata (no value)
 ```
 
-### Remove a secret
+### Other commands
 
 ```bash
-gokeep remove <name>
+gokeep list        # Tree view of projects, envs, and secrets
+gokeep status      # Show vault state, session expiry, and counts
+gokeep lock        # Clear the cached master password from the OS keyring
+gokeep reset       # Irreversibly delete the vault and all secrets (requires typing RESET)
 ```
-
-### Lock the session
-
-```bash
-gokeep lock
-```
-
-Clears the cached master password from the OS keyring.
-
-### Reset (delete everything)
-
-```bash
-gokeep reset
-```
-
-Irreversibly deletes the vault and session. Requires typing `RESET` to confirm.
 
 ## Security
 
@@ -107,7 +105,7 @@ go test -cover ./...        # Run tests with coverage
 
 ## Project Structure
 
-```
+```text
 gokeep/
 ├── cmd/gokeep/          # CLI entry point
 ├── internal/

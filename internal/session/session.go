@@ -38,7 +38,7 @@ func IsValid(dir string) bool {
 // StorePassword saves the master password to OS keyring and writes session timestamp.
 // We store the password (not the derived key) so the key must be re-derived each time,
 // reducing the window of exposure if the keyring is compromised.
-func StorePassword(dir string, password string) error {
+var StorePassword = func(dir string, password string) error {
 	// Store password in keyring
 	if err := keyring.Set(keyringService, keyringAccount, password); err != nil {
 		return fmt.Errorf("store password in keyring: %w", err)
@@ -64,7 +64,7 @@ func StorePassword(dir string, password string) error {
 }
 
 // LoadPassword reads the master password from OS keyring.
-func LoadPassword() (string, error) {
+var LoadPassword = func() (string, error) {
 	password, err := keyring.Get(keyringService, keyringAccount)
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
@@ -102,7 +102,7 @@ func Touch(dir string) error {
 }
 
 // Clear removes key from keyring and deletes session file.
-func Clear(dir string) error {
+var Clear = func(dir string) error {
 	// Remove from keyring
 	if err := keyring.Delete(keyringService, keyringAccount); err != nil {
 		// Ignore "not found" errors

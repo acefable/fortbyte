@@ -1,9 +1,12 @@
-.PHONY: build run test test-race cover fmt vet lint sec vuln tidy ci clean
+.PHONY: all build run test test-race cover fmt vet lint sec vuln tidy ci clean
 
 GO ?= go
 BINARY := gokeep
 PKG := ./...
 COVERAGE_FILE := coverage.out
+
+# Default target. Builds the binary.
+all: build
 
 # Build the gokeep binary. -trimpath strips local paths for reproducible builds.
 build:
