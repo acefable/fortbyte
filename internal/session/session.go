@@ -38,6 +38,7 @@ func IsValid(dir string) bool {
 // StorePassword saves the master password to OS keyring and writes session timestamp.
 // We store the password (not the derived key) so the key must be re-derived each time,
 // reducing the window of exposure if the keyring is compromised.
+// ponytail: keyring rollback paths on filesystem failure are unexercised by tests.
 var StorePassword = func(dir string, password string) error {
 	// Store password in keyring
 	if err := keyring.Set(keyringService, keyringAccount, password); err != nil {
@@ -46,17 +47,20 @@ var StorePassword = func(dir string, password string) error {
 
 	// Create directory if needed
 	if err := os.MkdirAll(dir, 0700); err != nil {
+		keyring.Delete(keyringService, keyringAccount)
 		return fmt.Errorf("create directory: %w", err)
 	}
 
 	// Write session file (empty, mtime = now)
 	sessionPath := filepath.Join(dir, sessionFile)
 	if err := os.WriteFile(sessionPath, []byte{}, 0600); err != nil {
+		keyring.Delete(keyringService, keyringAccount)
 		return fmt.Errorf("write session file: %w", err)
 	}
 
 	// Explicitly set permissions (umask may have loosened them)
 	if err := os.Chmod(sessionPath, 0600); err != nil {
+		keyring.Delete(keyringService, keyringAccount)
 		return fmt.Errorf("set session file permissions: %w", err)
 	}
 

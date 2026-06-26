@@ -42,7 +42,7 @@ var resetCmd = &cobra.Command{
 			return nil
 		}
 		if err := session.Clear(vaultDir); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not clear session: %v\n", err)
+			return fmt.Errorf("clear session: %w", err)
 		}
 		if err := os.Remove(vaultPath); err != nil {
 			return fmt.Errorf("delete vault: %w", err)
