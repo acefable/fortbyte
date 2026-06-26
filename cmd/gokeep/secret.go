@@ -52,6 +52,12 @@ var secretAddCmd = &cobra.Command{
 			}
 			envUID = eUID
 		}
+		// ponytail: pre-check the duplicate BEFORE prompting for value/notes/url.
+		// The vault-layer ErrDuplicateName check in AddSecret below is defense-in-depth
+		// (catches races, future API callers); this pre-check is the UX layer that
+		// saves the user from typing a no-echo secret value into a name that already
+		// exists. Project/env add don't need this because they don't have expensive
+		// no-echo prompts.
 		if _, _, found := v.FindSecretByName(name, projectUID, envUID); found {
 			return fmt.Errorf("secret '%s' already exists in this scope", name)
 		}
@@ -81,7 +87,7 @@ var secretAddCmd = &cobra.Command{
 				return err
 			}
 		}
-		uid := v.AddSecret(vault.Secret{
+		uid, err := v.AddSecret(vault.Secret{
 			Name:           name,
 			ProjectUID:     projectUID,
 			EnvironmentUID: envUID,
@@ -89,6 +95,12 @@ var secretAddCmd = &cobra.Command{
 			URL:            url,
 			Notes:          notes,
 		})
+		if err != nil {
+			if errors.Is(err, vault.ErrDuplicateName) {
+				return fmt.Errorf("secret '%s' already exists in this scope", name)
+			}
+			return err
+		}
 		if err := saveVault(v, vaultDir, key); err != nil {
 			return err
 		}
@@ -209,7 +221,7 @@ var secretRemoveCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(secretCmd)
 	secretCmd.PersistentFlags().String("project", "", "Project name")
-	secretCmd.AddCommand(secretAddCmd, secretEditCmd, secretRemoveCmd, secretListCmd, secretRevealCmd)
+	secretCmd.AddCommand(secretAddCmd, secretEditCmd, secretRemoveCmd, secretListCmd, secretRevealCmd, secretShowCmd)
 	secretAddCmd.Flags().String("env", "", "Environment name")
 	secretAddCmd.Flags().String("value", "", "Secret value")
 	secretAddCmd.Flags().String("url", "", "URL")
@@ -221,4 +233,5 @@ func init() {
 	secretRemoveCmd.Flags().String("env", "", "Environment name")
 	secretListCmd.Flags().String("env", "", "Environment name")
 	secretRevealCmd.Flags().String("env", "", "Environment name")
+	secretShowCmd.Flags().String("env", "", "Environment name")
 }

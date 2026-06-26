@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,13 +40,22 @@ func TestVaultCRUDRoundtrip(t *testing.T) {
 	}
 
 	// Add project
-	pUID := v.AddProject(Project{Name: "myapp", Description: "Test app"})
+	pUID, err := v.AddProject(Project{Name: "myapp", Description: "Test app"})
+	if err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
 
 	// Add environment scoped to project
-	eUID := v.AddEnvironment(Environment{Name: "production", ProjectUID: pUID})
+	eUID, err := v.AddEnvironment(Environment{Name: "production", ProjectUID: pUID})
+	if err != nil {
+		t.Fatalf("AddEnvironment: %v", err)
+	}
 
 	// Add secret scoped to env
-	sUID := v.AddSecret(Secret{Name: "db_url", ProjectUID: pUID, EnvironmentUID: eUID, Value: "postgres://localhost"})
+	sUID, err := v.AddSecret(Secret{Name: "db_url", ProjectUID: pUID, EnvironmentUID: eUID, Value: "postgres://localhost"})
+	if err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	// Verify project
 	p, ok := v.GetProject(pUID)
@@ -180,9 +190,17 @@ func TestAtomicWrite(t *testing.T) {
 		t.Fatalf("Open failed: %v", err)
 	}
 
-	pUID := v.AddProject(Project{Name: "test"})
-	eUID := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
-	v.AddSecret(Secret{Name: "key", ProjectUID: pUID, EnvironmentUID: eUID, Value: "secret"})
+	pUID, err := v.AddProject(Project{Name: "test"})
+	if err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
+	eUID, err := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
+	if err != nil {
+		t.Fatalf("AddEnvironment: %v", err)
+	}
+	if _, err := v.AddSecret(Secret{Name: "key", ProjectUID: pUID, EnvironmentUID: eUID, Value: "secret"}); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	if err := v.Save(dir, key); err != nil {
 		t.Fatalf("Save failed: %v", err)
@@ -251,9 +269,18 @@ func TestRemoveProjectCascades(t *testing.T) {
 		t.Fatalf("Open failed: %v", err)
 	}
 
-	pUID := v.AddProject(Project{Name: "p1"})
-	eUID := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
-	sUID := v.AddSecret(Secret{Name: "db", ProjectUID: pUID, EnvironmentUID: eUID, Value: "pass"})
+	pUID, err := v.AddProject(Project{Name: "p1"})
+	if err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
+	eUID, err := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
+	if err != nil {
+		t.Fatalf("AddEnvironment: %v", err)
+	}
+	sUID, err := v.AddSecret(Secret{Name: "db", ProjectUID: pUID, EnvironmentUID: eUID, Value: "pass"})
+	if err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	// Remove project
 	if !v.RemoveProject(pUID) {
@@ -285,9 +312,18 @@ func TestRemoveEnvironmentCascades(t *testing.T) {
 		t.Fatalf("Open failed: %v", err)
 	}
 
-	pUID := v.AddProject(Project{Name: "p1"})
-	eUID := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
-	sUID := v.AddSecret(Secret{Name: "db", ProjectUID: pUID, EnvironmentUID: eUID, Value: "pass"})
+	pUID, err := v.AddProject(Project{Name: "p1"})
+	if err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
+	eUID, err := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
+	if err != nil {
+		t.Fatalf("AddEnvironment: %v", err)
+	}
+	sUID, err := v.AddSecret(Secret{Name: "db", ProjectUID: pUID, EnvironmentUID: eUID, Value: "pass"})
+	if err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	// Remove environment
 	if !v.RemoveEnvironment(eUID) {
@@ -320,12 +356,24 @@ func TestListSecretsByProject(t *testing.T) {
 		t.Fatalf("Open failed: %v", err)
 	}
 
-	p1UID := v.AddProject(Project{Name: "p1"})
-	p2UID := v.AddProject(Project{Name: "p2"})
+	p1UID, err := v.AddProject(Project{Name: "p1"})
+	if err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
+	p2UID, err := v.AddProject(Project{Name: "p2"})
+	if err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
 
-	v.AddSecret(Secret{Name: "a", ProjectUID: p1UID, Value: "1"})
-	v.AddSecret(Secret{Name: "b", ProjectUID: p1UID, Value: "2"})
-	v.AddSecret(Secret{Name: "c", ProjectUID: p2UID, Value: "3"})
+	if _, err := v.AddSecret(Secret{Name: "a", ProjectUID: p1UID, Value: "1"}); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
+	if _, err := v.AddSecret(Secret{Name: "b", ProjectUID: p1UID, Value: "2"}); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
+	if _, err := v.AddSecret(Secret{Name: "c", ProjectUID: p2UID, Value: "3"}); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	p1Secrets := v.ListSecretsByProject(p1UID)
 	if len(p1Secrets) != 2 {
@@ -357,17 +405,29 @@ func TestFindSecretByName(t *testing.T) {
 		t.Fatalf("Open failed: %v", err)
 	}
 
-	pUID := v.AddProject(Project{Name: "p1"})
-	eUID := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
+	pUID, err := v.AddProject(Project{Name: "p1"})
+	if err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
+	eUID, err := v.AddEnvironment(Environment{Name: "dev", ProjectUID: pUID})
+	if err != nil {
+		t.Fatalf("AddEnvironment: %v", err)
+	}
 
 	// Standalone secret (no project, no env)
-	v.AddSecret(Secret{Name: "standalone", Value: "s"})
+	if _, err := v.AddSecret(Secret{Name: "standalone", Value: "s"}); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	// Project-scoped secret
-	v.AddSecret(Secret{Name: "scoped", ProjectUID: pUID, Value: "p"})
+	if _, err := v.AddSecret(Secret{Name: "scoped", ProjectUID: pUID, Value: "p"}); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	// Environment-scoped secret
-	v.AddSecret(Secret{Name: "scoped", ProjectUID: pUID, EnvironmentUID: eUID, Value: "e"})
+	if _, err := v.AddSecret(Secret{Name: "scoped", ProjectUID: pUID, EnvironmentUID: eUID, Value: "e"}); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	// Find standalone
 	_, _, found := v.FindSecretByName("standalone", "", "")
@@ -419,7 +479,10 @@ func TestStandaloneSecret(t *testing.T) {
 		t.Fatalf("Open failed: %v", err)
 	}
 
-	sUID := v.AddSecret(Secret{Name: "api_key", Value: "abc123"})
+	sUID, err := v.AddSecret(Secret{Name: "api_key", Value: "abc123"})
+	if err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	// Verify in memory
 	s, ok := v.GetSecret(sUID)
@@ -455,5 +518,80 @@ func TestStandaloneSecret(t *testing.T) {
 	_, _, found := v2.FindSecretByName("api_key", "", "")
 	if !found {
 		t.Error("FindSecretByName did not find standalone secret")
+	}
+}
+
+func TestAddProjectDuplicate(t *testing.T) {
+	v := &Vault{Projects: map[string]Project{}}
+	_, err := v.AddProject(Project{Name: "web"})
+	if err != nil {
+		t.Fatalf("first AddProject: %v", err)
+	}
+	_, err = v.AddProject(Project{Name: "web"})
+	if !errors.Is(err, ErrDuplicateName) {
+		t.Fatalf("second AddProject err = %v, want ErrDuplicateName", err)
+	}
+}
+
+func TestAddEnvironmentDuplicate(t *testing.T) {
+	v := &Vault{Environments: map[string]Environment{}}
+	_, err := v.AddEnvironment(Environment{Name: "prod", ProjectUID: "p1"})
+	if err != nil {
+		t.Fatalf("first AddEnvironment: %v", err)
+	}
+	_, err = v.AddEnvironment(Environment{Name: "prod", ProjectUID: "p1"})
+	if !errors.Is(err, ErrDuplicateName) {
+		t.Fatalf("second AddEnvironment in same project: err = %v, want ErrDuplicateName", err)
+	}
+	// Same name in a different project must succeed
+	_, err = v.AddEnvironment(Environment{Name: "prod", ProjectUID: "p2"})
+	if err != nil {
+		t.Fatalf("AddEnvironment same name in different project: %v", err)
+	}
+}
+
+func TestAddSecretDuplicate(t *testing.T) {
+	v := &Vault{Secrets: map[string]Secret{}}
+	_, err := v.AddSecret(Secret{Name: "api", ProjectUID: "p1", EnvironmentUID: "e1"})
+	if err != nil {
+		t.Fatalf("first AddSecret: %v", err)
+	}
+	_, err = v.AddSecret(Secret{Name: "api", ProjectUID: "p1", EnvironmentUID: "e1"})
+	if !errors.Is(err, ErrDuplicateName) {
+		t.Fatalf("second AddSecret in same scope: err = %v, want ErrDuplicateName", err)
+	}
+}
+
+func TestAddSecretNoCollisionDifferentScope(t *testing.T) {
+	v := &Vault{Secrets: map[string]Secret{}}
+	// Same name, project-scoped only
+	if _, err := v.AddSecret(Secret{Name: "scoped", ProjectUID: "p1", EnvironmentUID: ""}); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	// Same name, project + env-scoped
+	if _, err := v.AddSecret(Secret{Name: "scoped", ProjectUID: "p1", EnvironmentUID: "e1"}); err != nil {
+		t.Fatalf("different scope must succeed: %v", err)
+	}
+	// Same name, different project
+	if _, err := v.AddSecret(Secret{Name: "scoped", ProjectUID: "p2", EnvironmentUID: "e1"}); err != nil {
+		t.Fatalf("different project must succeed: %v", err)
+	}
+}
+
+func TestAddRemoveReAdd(t *testing.T) {
+	v := &Vault{Projects: map[string]Project{}}
+	uid1, err := v.AddProject(Project{Name: "web"})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if !v.RemoveProject(uid1) {
+		t.Fatalf("RemoveProject")
+	}
+	uid2, err := v.AddProject(Project{Name: "web"})
+	if err != nil {
+		t.Fatalf("re-Add: %v", err)
+	}
+	if uid1 == uid2 {
+		t.Errorf("expected fresh UID, got same: %s", uid1)
 	}
 }

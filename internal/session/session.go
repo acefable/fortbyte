@@ -20,7 +20,7 @@ const (
 	keyringService = "gokeep"
 	keyringAccount = "master-password" // Store password, not derived key
 	sessionFile    = "session"
-	sessionMaxAge  = 24 * time.Hour
+	SessionMaxAge  = 24 * time.Hour
 )
 
 // IsValid returns true if session file exists and mtime < 24h old.
@@ -32,7 +32,7 @@ func IsValid(dir string) bool {
 		return false
 	}
 
-	return time.Since(info.ModTime()) < sessionMaxAge
+	return time.Since(info.ModTime()) < SessionMaxAge
 }
 
 // StorePassword saves the master password to OS keyring and writes session timestamp.

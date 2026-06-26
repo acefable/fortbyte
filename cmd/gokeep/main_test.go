@@ -151,8 +151,12 @@ func TestFindProjectByName(t *testing.T) {
 		Environments: make(map[string]vault.Environment),
 		Secrets:      make(map[string]vault.Secret),
 	}
-	v.AddProject(vault.Project{Name: "myproject"})
-	v.AddProject(vault.Project{Name: "other"})
+	if _, err := v.AddProject(vault.Project{Name: "myproject"}); err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
+	if _, err := v.AddProject(vault.Project{Name: "other"}); err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
 
 	tests := []struct {
 		name      string
@@ -182,8 +186,12 @@ func TestFindEnvironmentByName(t *testing.T) {
 		Environments: make(map[string]vault.Environment),
 		Secrets:      make(map[string]vault.Secret),
 	}
-	v.AddProject(vault.Project{Name: "p1"})
-	v.AddProject(vault.Project{Name: "p2"})
+	if _, err := v.AddProject(vault.Project{Name: "p1"}); err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
+	if _, err := v.AddProject(vault.Project{Name: "p2"}); err != nil {
+		t.Fatalf("AddProject: %v", err)
+	}
 	projUID1 := ""
 	projUID2 := ""
 	for uid, p := range v.ListProjects() {
@@ -193,8 +201,12 @@ func TestFindEnvironmentByName(t *testing.T) {
 			projUID2 = uid
 		}
 	}
-	v.AddEnvironment(vault.Environment{Name: "dev", ProjectUID: projUID1})
-	v.AddEnvironment(vault.Environment{Name: "prod", ProjectUID: projUID1})
+	if _, err := v.AddEnvironment(vault.Environment{Name: "dev", ProjectUID: projUID1}); err != nil {
+		t.Fatalf("AddEnvironment: %v", err)
+	}
+	if _, err := v.AddEnvironment(vault.Environment{Name: "prod", ProjectUID: projUID1}); err != nil {
+		t.Fatalf("AddEnvironment: %v", err)
+	}
 
 	tests := []struct {
 		name       string
@@ -301,7 +313,7 @@ func TestRootCommandStructure(t *testing.T) {
 	for _, c := range subs {
 		names[c.Name()] = true
 	}
-	expected := []string{"init", "lock", "reset", "list", "project", "env", "secret"}
+	expected := []string{"init", "lock", "reset", "list", "project", "env", "secret", "status"}
 	for _, n := range expected {
 		if !names[n] {
 			t.Errorf("root missing subcommand: %s", n)
@@ -358,7 +370,7 @@ func TestSecretSubcommands(t *testing.T) {
 	for _, c := range subs {
 		names[c.Name()] = true
 	}
-	expected := []string{"add", "edit", "remove", "list", "reveal"}
+	expected := []string{"add", "edit", "remove", "list", "reveal", "show"}
 	for _, n := range expected {
 		if !names[n] {
 			t.Errorf("secret missing subcommand: %s", n)
@@ -522,5 +534,18 @@ func TestInitCreatesVault(t *testing.T) {
 	vaultPath := filepath.Join(dir, "vault.enc")
 	if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
 		t.Fatal("vault file was not created")
+	}
+}
+
+func TestStatusSubcommand(t *testing.T) {
+	found := false
+	for _, c := range rootCmd.Commands() {
+		if c.Name() == "status" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("status subcommand not registered with rootCmd")
 	}
 }

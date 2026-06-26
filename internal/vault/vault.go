@@ -22,6 +22,7 @@ var (
 	ErrProjectNotFound     = errors.New("project not found")
 	ErrEnvironmentNotFound = errors.New("environment not found")
 	ErrVersionMismatch     = errors.New("vault version mismatch")
+	ErrDuplicateName       = errors.New("name already exists")
 )
 
 const (
@@ -346,12 +347,17 @@ func GetSalt(dir string) ([]byte, error) {
 // --- Project CRUD ---
 
 // AddProject generates a UID, sets timestamps, inserts the project, and returns the UID.
-func (v *Vault) AddProject(p Project) string {
+func (v *Vault) AddProject(p Project) (string, error) {
+	for _, existing := range v.Projects {
+		if existing.Name == p.Name {
+			return "", fmt.Errorf("project %q: %w", p.Name, ErrDuplicateName)
+		}
+	}
 	p.UID = generateUID()
 	p.CreatedAt = time.Now()
 	p.UpdatedAt = p.CreatedAt
 	v.Projects[p.UID] = p
-	return p.UID
+	return p.UID, nil
 }
 
 // GetProject returns the project by UID.
@@ -415,12 +421,17 @@ func (v *Vault) RemoveProject(uid string) bool {
 // --- Environment CRUD ---
 
 // AddEnvironment generates a UID, sets timestamps, inserts the environment, and returns the UID.
-func (v *Vault) AddEnvironment(e Environment) string {
+func (v *Vault) AddEnvironment(e Environment) (string, error) {
+	for _, existing := range v.Environments {
+		if existing.Name == e.Name && existing.ProjectUID == e.ProjectUID {
+			return "", fmt.Errorf("environment %q in project %q: %w", e.Name, e.ProjectUID, ErrDuplicateName)
+		}
+	}
 	e.UID = generateUID()
 	e.CreatedAt = time.Now()
 	e.UpdatedAt = e.CreatedAt
 	v.Environments[e.UID] = e
-	return e.UID
+	return e.UID, nil
 }
 
 // GetEnvironment returns the environment by UID.
@@ -477,12 +488,24 @@ func (v *Vault) RemoveEnvironment(uid string) bool {
 // --- Secret CRUD ---
 
 // AddSecret generates a UID, sets timestamps, inserts the secret, and returns the UID.
-func (v *Vault) AddSecret(s Secret) string {
+func (v *Vault) AddSecret(s Secret) (string, error) {
+	for _, existing := range v.Secrets {
+		if existing.Name != s.Name {
+			continue
+		}
+		if existing.ProjectUID != s.ProjectUID {
+			continue
+		}
+		if existing.EnvironmentUID != s.EnvironmentUID {
+			continue
+		}
+		return "", fmt.Errorf("secret %q in scope (project=%q env=%q): %w", s.Name, s.ProjectUID, s.EnvironmentUID, ErrDuplicateName)
+	}
 	s.UID = generateUID()
 	s.CreatedAt = time.Now()
 	s.UpdatedAt = s.CreatedAt
 	v.Secrets[s.UID] = s
-	return s.UID
+	return s.UID, nil
 }
 
 // GetSecret returns the secret by UID.

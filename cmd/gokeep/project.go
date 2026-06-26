@@ -30,15 +30,18 @@ var projectAddCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if _, _, found := findProjectByName(v, name); found {
-			return fmt.Errorf("project '%s' already exists", name)
-		}
-		uid := v.AddProject(vault.Project{
+		uid, err := v.AddProject(vault.Project{
 			Name:        name,
 			Description: desc,
 			URL:         url,
 			Notes:       notes,
 		})
+		if err != nil {
+			if errors.Is(err, vault.ErrDuplicateName) {
+				return fmt.Errorf("project '%s' already exists", name)
+			}
+			return err
+		}
 		if err := saveVault(v, vaultDir, key); err != nil {
 			return err
 		}

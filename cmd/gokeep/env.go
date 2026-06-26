@@ -44,15 +44,18 @@ var envAddCmd = &cobra.Command{
 		if !found {
 			return fmt.Errorf("project '%s' not found", projectName)
 		}
-		if _, _, found := findEnvironmentByName(v, name, projectUID); found {
-			return fmt.Errorf("environment '%s' already exists in project '%s'", name, projectName)
-		}
-		uid := v.AddEnvironment(vault.Environment{
+		uid, err := v.AddEnvironment(vault.Environment{
 			Name:        name,
 			ProjectUID:  projectUID,
 			Description: desc,
 			Notes:       notes,
 		})
+		if err != nil {
+			if errors.Is(err, vault.ErrDuplicateName) {
+				return fmt.Errorf("environment '%s' already exists in project '%s'", name, projectName)
+			}
+			return err
+		}
 		if err := saveVault(v, vaultDir, key); err != nil {
 			return err
 		}
