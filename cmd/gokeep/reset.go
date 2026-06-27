@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,8 +34,11 @@ var resetCmd = &cobra.Command{
 		fmt.Fprint(cmd.OutOrStdout(), "Type 'RESET' to confirm: ")
 		reader := bufio.NewReader(cmd.InOrStdin())
 		confirm, err := reader.ReadString('\n')
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return fmt.Errorf("read confirmation: %w", err)
+		}
+		if confirm == "" {
+			return fmt.Errorf("read confirmation: unexpected EOF")
 		}
 		confirm = strings.TrimSpace(confirm)
 		if confirm != "RESET" {

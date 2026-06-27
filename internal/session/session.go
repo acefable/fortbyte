@@ -54,12 +54,14 @@ var StorePassword = func(dir string, password string) error {
 	// Write session file (empty, mtime = now)
 	sessionPath := filepath.Join(dir, sessionFile)
 	if err := os.WriteFile(sessionPath, []byte{}, 0600); err != nil {
+		os.Remove(sessionPath) // best-effort: leave no stale session file
 		keyring.Delete(keyringService, keyringAccount)
 		return fmt.Errorf("write session file: %w", err)
 	}
 
 	// Explicitly set permissions (umask may have loosened them)
 	if err := os.Chmod(sessionPath, 0600); err != nil {
+		os.Remove(sessionPath) // best-effort: leave no stale session file
 		keyring.Delete(keyringService, keyringAccount)
 		return fmt.Errorf("set session file permissions: %w", err)
 	}
