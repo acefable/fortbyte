@@ -20,7 +20,7 @@ const (
 	keyringService = "gokeep"
 	keyringAccount = "master-password" // Store password, not derived key
 	sessionFile    = "session"
-	sessionMaxAge  = 24 * time.Hour
+	SessionMaxAge  = 24 * time.Hour
 )
 
 // IsValid returns true if session file exists and mtime < 24h old.
@@ -32,13 +32,14 @@ func IsValid(dir string) bool {
 		return false
 	}
 
-	return time.Since(info.ModTime()) < sessionMaxAge
+	return time.Since(info.ModTime()) < SessionMaxAge
 }
 
 // StorePassword saves the master password to OS keyring and writes session timestamp.
 // We store the password (not the derived key) so the key must be re-derived each time,
 // reducing the window of exposure if the keyring is compromised.
-func StorePassword(dir string, password string) error {
+// ponytail: keyring rollback paths on filesystem failure are unexercised by tests.
+var StorePassword = func(dir string, password string) error {
 	// Store password in keyring
 	if err := keyring.Set(keyringService, keyringAccount, password); err != nil {
 		return fmt.Errorf("store password in keyring: %w", err)
@@ -46,17 +47,22 @@ func StorePassword(dir string, password string) error {
 
 	// Create directory if needed
 	if err := os.MkdirAll(dir, 0700); err != nil {
+		keyring.Delete(keyringService, keyringAccount)
 		return fmt.Errorf("create directory: %w", err)
 	}
 
 	// Write session file (empty, mtime = now)
 	sessionPath := filepath.Join(dir, sessionFile)
 	if err := os.WriteFile(sessionPath, []byte{}, 0600); err != nil {
+		os.Remove(sessionPath) // best-effort: leave no stale session file
+		keyring.Delete(keyringService, keyringAccount)
 		return fmt.Errorf("write session file: %w", err)
 	}
 
 	// Explicitly set permissions (umask may have loosened them)
 	if err := os.Chmod(sessionPath, 0600); err != nil {
+		os.Remove(sessionPath) // best-effort: leave no stale session file
+		keyring.Delete(keyringService, keyringAccount)
 		return fmt.Errorf("set session file permissions: %w", err)
 	}
 
@@ -64,7 +70,7 @@ func StorePassword(dir string, password string) error {
 }
 
 // LoadPassword reads the master password from OS keyring.
-func LoadPassword() (string, error) {
+var LoadPassword = func() (string, error) {
 	password, err := keyring.Get(keyringService, keyringAccount)
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
@@ -102,7 +108,7 @@ func Touch(dir string) error {
 }
 
 // Clear removes key from keyring and deletes session file.
-func Clear(dir string) error {
+var Clear = func(dir string) error {
 	// Remove from keyring
 	if err := keyring.Delete(keyringService, keyringAccount); err != nil {
 		// Ignore "not found" errors

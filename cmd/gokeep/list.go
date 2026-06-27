@@ -1,0 +1,89 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"sort"
+
+	"github.com/spf13/cobra"
+
+	"github.com/youruser/gokeep/internal/session"
+	"github.com/youruser/gokeep/internal/vault"
+)
+
+var listCmd = &cobra.Command{
+	Use:   "list",
+	Short: "Tree view of all projects, envs, and secrets",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		if vaultDir == "" {
+			return errors.New("cannot determine home directory")
+		}
+		v, _, err := openVault(vaultDir, cmd.ErrOrStderr(), cmd.ErrOrStderr())
+		if err != nil {
+			return err
+		}
+		if err := session.Touch(vaultDir); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not update session: %v\n", err)
+		}
+		projects := v.ListProjects()
+		secrets := v.ListSecrets()
+		if len(projects) == 0 && len(secrets) == 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "No projects or secrets stored.")
+			return nil
+		}
+		if len(projects) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "Projects:")
+			projectKeys := sortedKeysByName(projects, func(p vault.Project) string { return p.Name })
+			for _, pUID := range projectKeys {
+				p := projects[pUID]
+				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", p.Name)
+				envs := v.ListEnvironmentsByProject(pUID)
+				if len(envs) > 0 {
+					envKeys := sortedKeysByName(envs, func(e vault.Environment) string { return e.Name })
+					for _, eUID := range envKeys {
+						e := envs[eUID]
+						fmt.Fprintf(cmd.OutOrStdout(), "    %s\n", e.Name)
+						envSecrets := v.ListSecretsByProjectAndEnvironment(pUID, eUID)
+						secKeys := sortedKeysByName(envSecrets, func(s vault.Secret) string { return s.Name })
+						for _, sUID := range secKeys {
+							s := envSecrets[sUID]
+							fmt.Fprintf(cmd.OutOrStdout(), "      %s (UID: %s)\n", s.Name, shortUID(sUID))
+						}
+					}
+				}
+				projSecrets := v.ListSecretsByProject(pUID)
+				for sUID, s := range projSecrets {
+					if s.EnvironmentUID == "" {
+						fmt.Fprintf(cmd.OutOrStdout(), "    %s (UID: %s)\n", s.Name, shortUID(sUID))
+					}
+				}
+			}
+		}
+		var standalone []secretEntry
+		for sUID, s := range secrets {
+			if s.ProjectUID == "" {
+				standalone = append(standalone, secretEntry{name: s.Name, uid: sUID})
+			}
+		}
+		if len(standalone) > 0 {
+			if len(projects) > 0 {
+				fmt.Fprintln(cmd.OutOrStdout())
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "Standalone secrets:")
+			sort.Slice(standalone, func(i, j int) bool { return standalone[i].name < standalone[j].name })
+			for _, se := range standalone {
+				fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", se.name, shortUID(se.uid))
+			}
+		}
+		return nil
+	},
+}
+
+type secretEntry struct {
+	name string
+	uid  string
+}
+
+func init() {
+	rootCmd.AddCommand(listCmd)
+}
