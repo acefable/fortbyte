@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -261,6 +262,9 @@ var secretCopyCmd = &cobra.Command{
 		destName := name
 		if cmd.Flags().Changed("name") {
 			destName, _ = cmd.Flags().GetString("name")
+		}
+		if strings.TrimSpace(destName) == "" {
+			return errors.New("secret name cannot be empty")
 		}
 		destProjectUID, destEnvUID, err := resolveScope(v, destProjectName, destEnvName)
 		if err != nil {

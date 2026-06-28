@@ -45,6 +45,9 @@ var importCmd = &cobra.Command{
 			return fmt.Errorf("unknown format %q; use json or env", format)
 		}
 
+		if envName != "" && projectName == "" {
+			return errors.New("--project is required when --env is specified")
+		}
 		// .env import requires --project
 		if format == "env" && projectName == "" {
 			return errors.New("--project is required for .env import")
