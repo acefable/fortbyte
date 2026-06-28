@@ -161,7 +161,17 @@ func readEnvImport(filename string) ([]importEntry, error) {
 
 func stripQuotes(s string) string {
 	if len(s) >= 2 {
-		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
+		if s[0] == '"' && s[len(s)-1] == '"' {
+			inner := s[1 : len(s)-1]
+			// Unescape double-quoted .env values (reverse of quoteValue in export.go)
+			inner = strings.ReplaceAll(inner, `\\`, "\x00") // temporary placeholder
+			inner = strings.ReplaceAll(inner, `\"`, `"`)
+			inner = strings.ReplaceAll(inner, `\n`, "\n")
+			inner = strings.ReplaceAll(inner, `\r`, "\r")
+			inner = strings.ReplaceAll(inner, "\x00", `\`) // restore escaped backslashes
+			return inner
+		}
+		if s[0] == '\'' && s[len(s)-1] == '\'' {
 			return s[1 : len(s)-1]
 		}
 	}

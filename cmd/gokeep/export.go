@@ -177,17 +177,27 @@ func writeEnvExport(filename string, v *vault.Vault, secrets map[string]vault.Se
 		return fmt.Errorf("set file permissions: %w", err)
 	}
 
+	fw := func(format string, args ...any) error {
+		_, err := fmt.Fprintf(f, format, args...)
+		return err
+	}
+
 	for _, g := range groups {
-		// Sort secrets within group by name
 		sort.Slice(g.secrets, func(i, j int) bool { return g.secrets[i].Name < g.secrets[j].Name })
 
-		fmt.Fprintln(f, "# Exported from gokeep")
+		if err := fw("# Exported from gokeep\n"); err != nil {
+			return fmt.Errorf("write header: %w", err)
+		}
 		if g.projectName == "" {
 			// no-op: just the header line
 		} else if g.envName == "" {
-			fmt.Fprintf(f, "# Project: %s\n", g.projectName)
+			if err := fw("# Project: %s\n", g.projectName); err != nil {
+				return fmt.Errorf("write project header: %w", err)
+			}
 		} else {
-			fmt.Fprintf(f, "# Project: %s | Env: %s\n", g.projectName, g.envName)
+			if err := fw("# Project: %s | Env: %s\n", g.projectName, g.envName); err != nil {
+				return fmt.Errorf("write project/env header: %w", err)
+			}
 		}
 
 		for _, s := range g.secrets {
@@ -195,9 +205,13 @@ func writeEnvExport(filename string, v *vault.Vault, secrets map[string]vault.Se
 			if needsQuoting(val) {
 				val = quoteValue(val)
 			}
-			fmt.Fprintf(f, "%s=%s\n", s.Name, val)
+			if err := fw("%s=%s\n", s.Name, val); err != nil {
+				return fmt.Errorf("write secret %s: %w", s.Name, err)
+			}
 		}
-		fmt.Fprintln(f)
+		if err := fw("\n"); err != nil {
+			return fmt.Errorf("write trailing newline: %w", err)
+		}
 	}
 
 	return nil
@@ -253,6 +267,8 @@ func needsQuoting(s string) bool {
 func quoteValue(s string) string {
 	escaped := strings.ReplaceAll(s, `\`, `\\`)
 	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+	escaped = strings.ReplaceAll(escaped, "\n", `\n`)
+	escaped = strings.ReplaceAll(escaped, "\r", `\r`)
 	return `"` + escaped + `"`
 }
 
