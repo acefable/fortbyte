@@ -27,6 +27,71 @@ var listCmd = &cobra.Command{
 		}
 		projects := v.ListProjects()
 		secrets := v.ListSecrets()
+		format, _ := cmd.Flags().GetString("format")
+		if format == "json" {
+			type secretRef struct {
+				Name string `json:"name"`
+				UID  string `json:"uid"`
+			}
+			type envNode struct {
+				Name    string      `json:"name"`
+				Secrets []secretRef `json:"secrets"`
+			}
+			type projectNode struct {
+				Name    string      `json:"name"`
+				Envs    []envNode   `json:"envs,omitempty"`
+				Secrets []secretRef `json:"secrets,omitempty"`
+			}
+			type listOutput struct {
+				Projects   []projectNode `json:"projects"`
+				Standalone []secretRef   `json:"standalone,omitempty"`
+			}
+			out := listOutput{
+				Projects:   make([]projectNode, 0),
+				Standalone: make([]secretRef, 0),
+			}
+			if len(projects) > 0 {
+				projectKeys := sortedKeysByName(projects, func(p vault.Project) string { return p.Name })
+				for _, pUID := range projectKeys {
+					p := projects[pUID]
+					pn := projectNode{Name: p.Name}
+					envs := v.ListEnvironmentsByProject(pUID)
+					if len(envs) > 0 {
+						envKeys := sortedKeysByName(envs, func(e vault.Environment) string { return e.Name })
+						for _, eUID := range envKeys {
+							e := envs[eUID]
+							en := envNode{Name: e.Name}
+							envSecrets := v.ListSecretsByProjectAndEnvironment(pUID, eUID)
+							secKeys := sortedKeysByName(envSecrets, func(s vault.Secret) string { return s.Name })
+							for _, sUID := range secKeys {
+								s := envSecrets[sUID]
+								en.Secrets = append(en.Secrets, secretRef{Name: s.Name, UID: sUID})
+							}
+							pn.Envs = append(pn.Envs, en)
+						}
+					}
+					projSecrets := v.ListSecretsByProject(pUID)
+					var projSecRefs []secretRef
+					for sUID, s := range projSecrets {
+						if s.EnvironmentUID == "" {
+							projSecRefs = append(projSecRefs, secretRef{Name: s.Name, UID: sUID})
+						}
+					}
+					sort.Slice(projSecRefs, func(i, j int) bool { return projSecRefs[i].Name < projSecRefs[j].Name })
+					pn.Secrets = append(pn.Secrets, projSecRefs...)
+					out.Projects = append(out.Projects, pn)
+				}
+			}
+			var standaloneRefs []secretRef
+			for sUID, s := range secrets {
+				if s.ProjectUID == "" {
+					standaloneRefs = append(standaloneRefs, secretRef{Name: s.Name, UID: sUID})
+				}
+			}
+			sort.Slice(standaloneRefs, func(i, j int) bool { return standaloneRefs[i].Name < standaloneRefs[j].Name })
+			out.Standalone = append(out.Standalone, standaloneRefs...)
+			return printJSON(cmd.OutOrStdout(), out)
+		}
 		if len(projects) == 0 && len(secrets) == 0 {
 			fmt.Fprintln(cmd.OutOrStdout(), "No projects or secrets stored.")
 			return nil
@@ -52,7 +117,9 @@ var listCmd = &cobra.Command{
 					}
 				}
 				projSecrets := v.ListSecretsByProject(pUID)
-				for sUID, s := range projSecrets {
+				secKeys := sortedKeysByName(projSecrets, func(s vault.Secret) string { return s.Name })
+				for _, sUID := range secKeys {
+					s := projSecrets[sUID]
 					if s.EnvironmentUID == "" {
 						fmt.Fprintf(cmd.OutOrStdout(), "    %s (UID: %s)\n", s.Name, shortUID(sUID))
 					}
@@ -86,4 +153,5 @@ type secretEntry struct {
 
 func init() {
 	rootCmd.AddCommand(listCmd)
+	listCmd.Flags().StringP("format", "o", "", "Output format: json")
 }
