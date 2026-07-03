@@ -263,6 +263,7 @@ var envShowCmd = &cobra.Command{
 				Notes:       e.Notes,
 				Created:     e.CreatedAt.Format("2006-01-02 15:04:05"),
 				Updated:     e.UpdatedAt.Format("2006-01-02 15:04:05"),
+				Secrets:     []secretRef{},
 			}
 			envSecrets := v.ListSecretsByProjectAndEnvironment(p.UID, uid)
 			secKeys := sortedKeysByName(envSecrets, func(s vault.Secret) string { return s.Name })

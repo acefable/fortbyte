@@ -83,7 +83,7 @@ var listCmd = &cobra.Command{
 				}
 				for _, eUID := range envKeys {
 					e := envs[eUID]
-					en := envNode{Name: e.Name}
+					en := envNode{Name: e.Name, Secrets: []secretRef{}}
 					envSecrets := v.ListSecretsByProjectAndEnvironment(pUID, eUID)
 					secKeys := sortedKeysByName(envSecrets, func(s vault.Secret) string { return s.Name })
 					for _, sUID := range secKeys {

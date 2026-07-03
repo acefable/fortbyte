@@ -2300,6 +2300,143 @@ func TestEnvShowJSON(t *testing.T) {
 	}
 }
 
+func TestEnvShowJSONEmptySecrets(t *testing.T) {
+	resetCmdFlags(t)
+	dir := setupTestVault(t)
+	salt, err := vault.GetSalt(dir)
+	if err != nil {
+		t.Fatalf("GetSalt: %v", err)
+	}
+	key := crypto.DeriveKey("password1234", salt)
+	v, err := vault.Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	pUID, _ := v.AddProject(vault.Project{Name: "myapp"})
+	v.AddEnvironment(vault.Environment{Name: "empty-env", ProjectUID: pUID})
+	if err := v.Save(dir, key); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"env", "show", "empty-env", "--project", "myapp", "--format", "json"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("env show: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, buf.String())
+	}
+	secrets, ok := got["secrets"].([]any)
+	if !ok {
+		t.Fatalf("secrets missing or wrong type (nil = null): %v", got["secrets"])
+	}
+	if len(secrets) != 0 {
+		t.Errorf("expected 0 secrets, got %d", len(secrets))
+	}
+}
+
+func TestProjectShowJSONEmptyEnvs(t *testing.T) {
+	resetCmdFlags(t)
+	dir := setupTestVault(t)
+	salt, err := vault.GetSalt(dir)
+	if err != nil {
+		t.Fatalf("GetSalt: %v", err)
+	}
+	key := crypto.DeriveKey("password1234", salt)
+	v, err := vault.Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	v.AddProject(vault.Project{Name: "empty-project"})
+	if err := v.Save(dir, key); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"project", "show", "empty-project", "--format", "json"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("project show: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, buf.String())
+	}
+	envs, ok := got["environments"].([]any)
+	if !ok {
+		t.Fatalf("environments missing or wrong type (nil = null): %v", got["environments"])
+	}
+	if len(envs) != 0 {
+		t.Errorf("expected 0 environments, got %d", len(envs))
+	}
+}
+
+func TestListJSONEmptyEnvSecrets(t *testing.T) {
+	resetCmdFlags(t)
+	dir := setupTestVault(t)
+	salt, err := vault.GetSalt(dir)
+	if err != nil {
+		t.Fatalf("GetSalt: %v", err)
+	}
+	key := crypto.DeriveKey("password1234", salt)
+	v, err := vault.Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	pUID, _ := v.AddProject(vault.Project{Name: "myapp"})
+	v.AddEnvironment(vault.Environment{Name: "prod", ProjectUID: pUID})
+	v.AddEnvironment(vault.Environment{Name: "empty-env", ProjectUID: pUID})
+	v.AddSecret(vault.Secret{Name: "SECRET_A", Value: "a", ProjectUID: pUID})
+	if err := v.Save(dir, key); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"list", "--format", "json"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, buf.String())
+	}
+	projects, ok := got["projects"].([]any)
+	if !ok {
+		t.Fatalf("projects missing: %v", got)
+	}
+	if len(projects) != 1 {
+		t.Fatalf("expected 1 project, got %d", len(projects))
+	}
+	p := projects[0].(map[string]any)
+	envs, ok := p["envs"].([]any)
+	if !ok {
+		t.Fatalf("envs missing: %v", p)
+	}
+	// Both envs should have a "secrets" field as [] even when empty
+	for _, e := range envs {
+		env := e.(map[string]any)
+		secrets, ok := env["secrets"].([]any)
+		if !ok {
+			t.Fatalf("env %v: secrets missing or wrong type (nil = null): %v", env["name"], env["secrets"])
+		}
+		if env["name"] == "empty-env" && len(secrets) != 0 {
+			t.Errorf("empty-env should have 0 secrets, got %d", len(secrets))
+		}
+	}
+}
+
 // --- list command scope filtering tests ---
 
 func TestListJSONScopedByProject(t *testing.T) {

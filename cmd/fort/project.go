@@ -212,13 +212,14 @@ var projectShowCmd = &cobra.Command{
 				SecretCount  int      `json:"secret_count"`
 			}
 			detail := projectDetail{
-				Name:        p.Name,
-				UID:         uid,
-				Description: p.Description,
-				URL:         p.URL,
-				Notes:       p.Notes,
-				Created:     p.CreatedAt.Format("2006-01-02 15:04:05"),
-				Updated:     p.UpdatedAt.Format("2006-01-02 15:04:05"),
+				Name:         p.Name,
+				UID:          uid,
+				Description:  p.Description,
+				URL:          p.URL,
+				Notes:        p.Notes,
+				Created:      p.CreatedAt.Format("2006-01-02 15:04:05"),
+				Updated:      p.UpdatedAt.Format("2006-01-02 15:04:05"),
+				Environments: []envRef{},
 			}
 			envs := v.ListEnvironmentsByProject(uid)
 			envKeys := sortedKeysByName(envs, func(e vault.Environment) string { return e.Name })
