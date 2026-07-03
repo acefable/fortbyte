@@ -51,8 +51,21 @@ var secretAddCmd = &cobra.Command{
 		if _, _, found := v.FindSecretByName(name, projectUID, envUID); found {
 			return fmt.Errorf("secret '%s' already exists in this scope", name)
 		}
+		generate, _ := cmd.Flags().GetBool("generate")
 		value, _ := cmd.Flags().GetString("value")
-		if !cmd.Flags().Changed("value") {
+		if generate && cmd.Flags().Changed("value") {
+			return errors.New("--value and --generate are mutually exclusive")
+		}
+		if generate {
+			length, _ := cmd.Flags().GetInt("length")
+			noSymbols, _ := cmd.Flags().GetBool("no-symbols")
+			pw, err := generatePassword(length, !noSymbols)
+			if err != nil {
+				return fmt.Errorf("generate password: %w", err)
+			}
+			value = pw
+		}
+		if !cmd.Flags().Changed("value") && !generate {
 			fmt.Fprint(cmd.ErrOrStderr(), "Enter secret value: ")
 			pw, err := readPasswordFn()
 			if err != nil {
@@ -304,6 +317,9 @@ func init() {
 	secretAddCmd.Flags().String("value", "", "Secret value")
 	secretAddCmd.Flags().String("url", "", "URL")
 	secretAddCmd.Flags().String("notes", "", "Notes")
+	secretAddCmd.Flags().Bool("generate", false, "Auto-generate a password for the value")
+	secretAddCmd.Flags().IntP("length", "l", 24, "Password length (used with --generate)")
+	secretAddCmd.Flags().Bool("no-symbols", false, "Exclude special characters (used with --generate)")
 	secretEditCmd.Flags().String("env", "", "Environment name")
 	secretEditCmd.Flags().String("value", "", "Secret value")
 	secretEditCmd.Flags().String("url", "", "URL")
@@ -314,6 +330,7 @@ func init() {
 	secretListCmd.Flags().StringP("format", "o", "", "Output format: json")
 	secretRevealCmd.Flags().String("env", "", "Environment name")
 	secretRevealCmd.Flags().StringP("format", "o", "", "Output format: json")
+	secretRevealCmd.Flags().Bool("clip", false, "Copy secret value to clipboard")
 	secretShowCmd.Flags().String("env", "", "Environment name")
 	secretShowCmd.Flags().StringP("format", "o", "", "Output format: json")
 	secretMoveCmd.Flags().String("dest-project", "", "Destination project name")

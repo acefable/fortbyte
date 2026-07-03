@@ -4,7 +4,6 @@ package main
 import (
 	"io"
 	"os"
-	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -39,9 +38,9 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	// Compute vault directory
-	homeDir, err := os.UserHomeDir()
-	if err == nil {
-		vaultDir = filepath.Join(homeDir, fortDir)
+	vaultDir = defaultVaultDir()
+	cfg, _ := loadConfig()
+	if cfg.VaultDir != "" {
+		vaultDir = cfg.VaultDir
 	}
 }

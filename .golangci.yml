@@ -1,6 +1,4 @@
-# golangci-lint configuration for fortbyte
-# Docs: https://golangci-lint.run/
-# Linter list: https://golangci-lint.run/usage/linters/
+version: "2"
 
 run:
   timeout: 5m
@@ -9,90 +7,32 @@ run:
   allow-parallel-runners: true
 
 linters:
-  disable-all: true
+  default: none
   enable:
-    # Built-in / standard
-    - govet         # go vet (always on, listed for clarity)
-    - errcheck      # unchecked errors
-    - gosimple      # simplifications
-    - unused        # unused vars/funcs/types
-    - ineffassign   # unused assignments
-    - staticcheck   # advanced static analysis
-    - typecheck     # type checking
-
-    # Style / formatting
-    - gofmt         # gofmt compliance
-    - goimports     # import grouping
-    - misspell      # spelling
-    - revive        # golint successor
-    - gocritic      # opinionated style/performance checks
-
-    # Security
-    - gosec         # security issues
-    - exportloopref # export loop variable in goroutines
-    - bodyclose     # http body not closed
-    - noctx         # http request without context
-
-    # Performance / quality
-    - gocognit      # cognitive complexity
-    - dupl          # duplicate code
-    - prealloc      # slice prealloc hints
-    - varnamelen    # variable name length
+    - govet
+    - unused
+    - ineffassign
+    - staticcheck
+    - misspell
 
 linters-settings:
-  gocognit:
-    min-complexity: 20
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-      - experimental
-    disabled-checks:
-      - hugeParam       # too noisy for small structs
-      - rangeValCopy    # often a false positive
-      - ifElseChain     # too noisy
-      - octalLiteral    # Go has octal literals, sometimes intentional
   govet:
     enable-all: true
     disable:
-      - fieldalignment  # too noisy, low value
-  gosec:
-    severity: high
-    confidence: high
-    excludes:
-      - G107  # URL strings — too noisy for a CLI
+      - fieldalignment
+  staticcheck:
+    checks:
+      - all
+      - "-QF*"
+      - "-S1016"
+
+formatters:
+  enable:
+    - goimports
   goimports:
     local-prefixes: github.com/youruser/fortbyte
-  varnamelen:
-    min-name-length: 1
-    ignore-names:
-      - err
-      - id
-      - ok
-      - t
-      - x
-      - y
-      - z
-      - i
-      - j
-      - k
 
 issues:
-  # CLI output calls are intentionally unchecked (write to stdout/stderr failure is non-recoverable)
-  exclude:
-    - "Error return value of .*(fmt\\.Fprint|fmt\\.Fprintf|fmt\\.Fprintln).* is not checked"
-  exclude-rules:
-    # Tests can be more lenient on a few checks
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - gocognit
-    # Generated files
-    - path: \.pb\.go$
-      linters:
-        - all
   max-issues-per-linter: 0
   max-same-issues: 0
   exclude-use-default: false

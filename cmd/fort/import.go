@@ -117,14 +117,7 @@ func readJSONImport(filename string) ([]importEntry, error) {
 
 	entries := make([]importEntry, len(raw))
 	for i, e := range raw {
-		entries[i] = importEntry{
-			Name:    e.Name,
-			Project: e.Project,
-			Env:     e.Env,
-			Value:   e.Value,
-			URL:     e.URL,
-			Notes:   e.Notes,
-		}
+		entries[i] = importEntry(e)
 	}
 	return entries, nil
 }
