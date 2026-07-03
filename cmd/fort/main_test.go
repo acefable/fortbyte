@@ -334,7 +334,7 @@ func TestRootCommandStructure(t *testing.T) {
 	for _, c := range subs {
 		names[c.Name()] = true
 	}
-	expected := []string{"init", "lock", "reset", "list", "project", "env", "secret", "status", "find", "export", "import"}
+	expected := []string{"init", "lock", "reset", "list", "project", "env", "secret", "status", "find", "export", "import", "config", "generate"}
 	for _, n := range expected {
 		if !names[n] {
 			t.Errorf("root missing subcommand: %s", n)
@@ -414,7 +414,7 @@ func TestSecretAddFlags(t *testing.T) {
 		t.Error("secret missing persistent --project flag")
 	}
 	// --env, --value, --url, --notes are local flags on secretAddCmd
-	localFlags := []string{"env", "value", "url", "notes"}
+	localFlags := []string{"env", "value", "url", "notes", "generate"}
 	for _, name := range localFlags {
 		if secretAddCmd.Flags().Lookup(name) == nil {
 			t.Errorf("secret add missing flag: %s", name)
@@ -2661,5 +2661,343 @@ func TestListJSONPopulatedProjectScopes(t *testing.T) {
 	}
 	if _, ok := got2["standalone"]; ok {
 		t.Error("standalone should not appear when scoped to a project")
+	}
+}
+
+// --- generate password tests ---
+
+func TestGeneratePassword(t *testing.T) {
+	tests := []struct {
+		name       string
+		length     int
+		useSymbols bool
+		wantLen    int
+		wantErr    bool
+	}{
+		{"default with symbols", 24, true, 24, false},
+		{"no symbols", 16, false, 16, false},
+		{"length 1", 1, true, 1, false},
+		{"zero length", 0, true, 0, true},
+		{"negative length", -5, true, 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pw, err := generatePassword(tt.length, tt.useSymbols)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("generatePassword() err=%v, wantErr=%v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				return
+			}
+			if len(pw) != tt.wantLen {
+				t.Errorf("len = %d, want %d", len(pw), tt.wantLen)
+			}
+			if tt.useSymbols {
+				// Verify at least some chars are from the expected set (statistical, not absolute)
+				for _, c := range pw {
+					isAlpha := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+					isDigit := c >= '0' && c <= '9'
+					isSymbol := strings.ContainsRune("!@#$%^&*", c)
+					if !isAlpha && !isDigit && !isSymbol {
+						t.Errorf("unexpected char in password: %c", c)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGeneratePasswordUniqueness(t *testing.T) {
+	// Two 24-char passwords should differ (overwhelming probability)
+	pw1, err := generatePassword(24, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pw2, err := generatePassword(24, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pw1 == pw2 {
+		t.Errorf("two generated passwords are identical: %s", pw1)
+	}
+}
+
+func TestGenerateCmdFlags(t *testing.T) {
+	// Verify flags are registered
+	if generateCmd.Flags().Lookup("length") == nil {
+		t.Error("generate missing --length flag")
+	}
+	if generateCmd.Flags().Lookup("no-symbols") == nil {
+		t.Error("generate missing --no-symbols flag")
+	}
+}
+
+func TestGenerateCmdExec(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"generate"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	pw := strings.TrimSpace(buf.String())
+	if len(pw) != 24 {
+		t.Errorf("default length = %d, want 24", len(pw))
+	}
+}
+
+func TestGenerateCmdCustomLength(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"generate", "-l", "8"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	pw := strings.TrimSpace(buf.String())
+	if len(pw) != 8 {
+		t.Errorf("custom length = %d, want 8", len(pw))
+	}
+}
+
+func TestGenerateCmdNoSymbols(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"generate", "--no-symbols", "-l", "100"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	pw := strings.TrimSpace(buf.String())
+	for _, c := range pw {
+		if strings.ContainsRune("!@#$%^&*", c) {
+			t.Errorf("no-symbols password contains symbol: %c", c)
+		}
+	}
+}
+
+// --- config command tests ---
+
+func TestConfigSubcommands(t *testing.T) {
+	subs := configCmd.Commands()
+	names := make(map[string]bool)
+	for _, c := range subs {
+		names[c.Name()] = true
+	}
+	if !names["set"] {
+		t.Error("config missing 'set' subcommand")
+	}
+	if !names["get"] {
+		t.Error("config missing 'get' subcommand")
+	}
+}
+
+func TestConfigGetUnknownKey(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"config", "get", "unknown-key"})
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown config key")
+	}
+	if !strings.Contains(err.Error(), "unknown config key") {
+		t.Errorf("error should mention 'unknown config key', got: %v", err)
+	}
+}
+
+func TestConfigSetUnknownKey(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"config", "set", "unknown-key", "value"})
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown config key")
+	}
+	if !strings.Contains(err.Error(), "unknown config key") {
+		t.Errorf("error should mention 'unknown config key', got: %v", err)
+	}
+}
+
+func TestConfigRequiresArgs(t *testing.T) {
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	// config set requires 2 args
+	rootCmd.SetArgs([]string{"config", "set"})
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for config set with no args")
+	}
+
+	// config get requires 1 arg
+	rootCmd.SetArgs([]string{"config", "get"})
+	err = rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for config get with no args")
+	}
+}
+
+func TestLoadSaveConfigRoundtrip(t *testing.T) {
+	// Test loadConfig/saveConfig directly by overriding HOME
+	origHome, _ := os.UserHomeDir()
+	tmpDir := t.TempDir()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Setenv("HOME", origHome) })
+
+	cfg := config{VaultDir: "/custom/vault/path"}
+	if err := saveConfig(cfg); err != nil {
+		t.Fatalf("saveConfig: %v", err)
+	}
+
+	got, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if got.VaultDir != "/custom/vault/path" {
+		t.Errorf("VaultDir = %q, want %q", got.VaultDir, "/custom/vault/path")
+	}
+}
+
+func TestLoadConfigMissing(t *testing.T) {
+	origHome, _ := os.UserHomeDir()
+	tmpDir := t.TempDir()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Setenv("HOME", origHome) })
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig on missing file: %v", err)
+	}
+	if cfg.VaultDir != "" {
+		t.Errorf("expected empty VaultDir, got %q", cfg.VaultDir)
+	}
+}
+
+func TestLoadConfigCorrupt(t *testing.T) {
+	origHome, _ := os.UserHomeDir()
+	tmpDir := t.TempDir()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Setenv("HOME", origHome) })
+
+	// Create a config file with invalid JSON
+	configDir := filepath.Join(tmpDir, fortDir)
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.json"), []byte("not json"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := loadConfig()
+	if err == nil {
+		t.Fatal("expected error for corrupt config")
+	}
+	if !strings.Contains(err.Error(), "invalid config file") {
+		t.Errorf("error should mention 'invalid config file', got: %v", err)
+	}
+}
+
+// --- secret add --generate tests ---
+
+func TestSecretAddGenerate(t *testing.T) {
+	resetCmdFlags(t)
+	dir := setupTestVault(t)
+	salt, err := vault.GetSalt(dir)
+	if err != nil {
+		t.Fatalf("GetSalt: %v", err)
+	}
+	key := crypto.DeriveKey("password1234", salt)
+	v, err := vault.Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := v.Save(dir, key); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"secret", "add", "AUTO_SECRET", "--generate", "--value", "", "--url", "", "--notes", ""})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("secret add --generate: %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "added") {
+		t.Errorf("expected success message, got: %s", output)
+	}
+
+	// Re-open vault and verify the secret has a value
+	v2, err := vault.Open(dir, crypto.DeriveKey("password1234", salt))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	s, _, found := v2.FindSecretByName("AUTO_SECRET", "", "")
+	if !found {
+		t.Fatal("AUTO_SECRET not found after add --generate")
+	}
+	if len(s.Value) != 24 {
+		t.Errorf("generated value length = %d, want 24", len(s.Value))
+	}
+}
+
+func TestSecretRevealClipFlagExists(t *testing.T) {
+	// Verify --clip flag is registered on secret reveal
+	if secretRevealCmd.Flags().Lookup("clip") == nil {
+		t.Error("secret reveal missing --clip flag")
+	}
+}
+
+func TestSecretRevealClip(t *testing.T) {
+	resetCmdFlags(t)
+	dir := setupTestVault(t)
+	salt, err := vault.GetSalt(dir)
+	if err != nil {
+		t.Fatalf("GetSalt: %v", err)
+	}
+	key := crypto.DeriveKey("password1234", salt)
+	v, err := vault.Open(dir, key)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	pUID, _ := v.AddProject(vault.Project{Name: "myapp"})
+	v.AddSecret(vault.Secret{Name: "CLIP_SECRET", Value: "clipboard-value", ProjectUID: pUID})
+	if err := v.Save(dir, key); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+
+	// --clip will fail to copy (no clipboard in test), but should warn and still print value
+	var outBuf, errBuf bytes.Buffer
+	rootCmd.SetOut(&outBuf)
+	rootCmd.SetErr(&errBuf)
+	rootCmd.SetArgs([]string{"secret", "reveal", "CLIP_SECRET", "--project", "myapp", "--clip"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("reveal --clip: %v", err)
+	}
+	output := outBuf.String()
+	if !strings.Contains(output, "Value:") {
+		t.Errorf("expected value in output, got: %s", output)
 	}
 }

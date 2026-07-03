@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -118,6 +120,14 @@ var secretRevealCmd = &cobra.Command{
 		}
 		if err := session.Touch(vaultDir); err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not update session: %v\n", err)
+		}
+		clip, _ := cmd.Flags().GetBool("clip")
+		if clip {
+			if err := copyToClipboard(s.Value); err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not copy to clipboard: %v\n", err)
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), "Copied to clipboard. Clipboard clears in 45 seconds.")
+			}
 		}
 		format, _ := cmd.Flags().GetString("format")
 		if format == "json" {
@@ -258,4 +268,20 @@ var secretShowCmd = &cobra.Command{
 		fmt.Fprintf(cmd.OutOrStdout(), "Updated: %s\n", s.UpdatedAt.Format("2006-01-02 15:04:05"))
 		return nil
 	},
+}
+
+func copyToClipboard(value string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pbcopy")
+	case "linux":
+		cmd = exec.Command("xclip", "-selection", "clipboard")
+	case "windows":
+		cmd = exec.Command("clip")
+	default:
+		return fmt.Errorf("clipboard not supported on %s", runtime.GOOS)
+	}
+	cmd.Stdin = strings.NewReader(value)
+	return cmd.Run()
 }

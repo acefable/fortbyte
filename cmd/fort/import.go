@@ -117,7 +117,7 @@ func readJSONImport(filename string) ([]importEntry, error) {
 
 	entries := make([]importEntry, len(raw))
 	for i, e := range raw {
-		entries[i] = importEntry{
+		entries[i] = importEntry{ //nolint:staticcheck // pre-existing, intentional struct literal
 			Name:    e.Name,
 			Project: e.Project,
 			Env:     e.Env,

@@ -115,20 +115,6 @@ fortbyte/
 └── AGENTS.md            # Project conventions and build commands
 ```
 
-## Roadmap
-
-- [x] Import/export (.env, JSON)
-- [x] Secret move/copy between environments
-- [x] Secret search (`fort find`, `--filter` on list)
-- [x] Secret show (metadata without value)
-- [x] Cobra CLI migration
-- [ ] JSON output for list/show/reveal (`--format=json`)
-- [ ] Password generator
-- [ ] Clipboard integration
-- [ ] REST API with OpenAPI spec
-- [ ] Docker deployment
-- [ ] Multi-vault support
-
 ## License
 
 MIT

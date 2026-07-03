@@ -44,4 +44,9 @@ func init() {
 	if err == nil {
 		vaultDir = filepath.Join(homeDir, fortDir)
 	}
+	// Load config to override vaultDir if set
+	cfg, _ := loadConfig()
+	if cfg.VaultDir != "" {
+		vaultDir = cfg.VaultDir
+	}
 }
