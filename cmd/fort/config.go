@@ -42,11 +42,15 @@ var configSetCmd = &cobra.Command{
 			return fmt.Errorf("unknown config key: %s", key)
 		}
 		cfg, _ := loadConfig()
-		cfg.VaultDir = value
+		abs, err := filepath.Abs(value)
+		if err != nil {
+			return fmt.Errorf("invalid path: %w", err)
+		}
+		cfg.VaultDir = abs
 		if err := saveConfig(cfg); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Vault directory set to: %s\n", value)
+		fmt.Fprintf(cmd.OutOrStdout(), "Vault directory set to: %s\n", abs)
 		return nil
 	},
 }

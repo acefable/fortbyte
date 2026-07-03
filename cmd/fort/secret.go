@@ -53,8 +53,13 @@ var secretAddCmd = &cobra.Command{
 		}
 		generate, _ := cmd.Flags().GetBool("generate")
 		value, _ := cmd.Flags().GetString("value")
+		if generate && cmd.Flags().Changed("value") {
+			return errors.New("--value and --generate are mutually exclusive")
+		}
 		if generate {
-			pw, err := generatePassword(24, true)
+			length, _ := cmd.Flags().GetInt("length")
+			noSymbols, _ := cmd.Flags().GetBool("no-symbols")
+			pw, err := generatePassword(length, !noSymbols)
 			if err != nil {
 				return fmt.Errorf("generate password: %w", err)
 			}
@@ -313,6 +318,8 @@ func init() {
 	secretAddCmd.Flags().String("url", "", "URL")
 	secretAddCmd.Flags().String("notes", "", "Notes")
 	secretAddCmd.Flags().Bool("generate", false, "Auto-generate a password for the value")
+	secretAddCmd.Flags().IntP("length", "l", 24, "Password length (used with --generate)")
+	secretAddCmd.Flags().Bool("no-symbols", false, "Exclude special characters (used with --generate)")
 	secretEditCmd.Flags().String("env", "", "Environment name")
 	secretEditCmd.Flags().String("value", "", "Secret value")
 	secretEditCmd.Flags().String("url", "", "URL")

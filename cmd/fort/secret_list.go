@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -126,7 +128,7 @@ var secretRevealCmd = &cobra.Command{
 			if err := copyToClipboard(s.Value); err != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not copy to clipboard: %v\n", err)
 			} else {
-				fmt.Fprintln(cmd.OutOrStdout(), "Copied to clipboard. Clipboard clears in 45 seconds.")
+				fmt.Fprintln(cmd.OutOrStdout(), "Copied to clipboard.")
 			}
 		}
 		format, _ := cmd.Flags().GetString("format")
@@ -271,14 +273,16 @@ var secretShowCmd = &cobra.Command{
 }
 
 func copyToClipboard(value string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("pbcopy")
+		cmd = exec.CommandContext(ctx, "pbcopy")
 	case "linux":
-		cmd = exec.Command("xclip", "-selection", "clipboard")
+		cmd = exec.CommandContext(ctx, "xclip", "-selection", "clipboard")
 	case "windows":
-		cmd = exec.Command("clip")
+		cmd = exec.CommandContext(ctx, "clip")
 	default:
 		return fmt.Errorf("clipboard not supported on %s", runtime.GOOS)
 	}

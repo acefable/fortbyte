@@ -2938,7 +2938,7 @@ func TestSecretAddGenerate(t *testing.T) {
 	var buf bytes.Buffer
 	rootCmd.SetOut(&buf)
 	rootCmd.SetErr(io.Discard)
-	rootCmd.SetArgs([]string{"secret", "add", "AUTO_SECRET", "--generate", "--value", "", "--url", "", "--notes", ""})
+	rootCmd.SetArgs([]string{"secret", "add", "AUTO_SECRET", "--generate", "--url", "", "--notes", ""})
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("secret add --generate: %v", err)
 	}
