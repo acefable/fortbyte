@@ -47,10 +47,10 @@ func TestShortUID(t *testing.T) {
 		uid      string
 		expected string
 	}{
-		{"full uid", "abcdef1234567890abcdef1234567890", "abcdef12"},
+		{"full uid", "abcdef1234567890abcdef1234567890", "abcdef123456"},
 		{"short uid", "abc", "abc"},
 		{"empty", "", ""},
-		{"exactly 8", "12345678", "12345678"},
+		{"exactly 12", "123456789012", "123456789012"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
