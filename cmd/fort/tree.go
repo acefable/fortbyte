@@ -2,10 +2,11 @@ package main
 
 import "sort"
 
-// shortUID returns the first 8 chars of a UID.
+// shortUID returns the first 12 chars of a UID.
+// 12 hex chars = 281 trillion combinations, effectively unique for display purposes.
 func shortUID(uid string) string {
-	if len(uid) > 8 {
-		return uid[:8]
+	if len(uid) > 12 {
+		return uid[:12]
 	}
 	return uid
 }
