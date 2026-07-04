@@ -77,7 +77,7 @@ var secretAddCmd = &cobra.Command{
 		url, _ := cmd.Flags().GetString("url")
 		if !cmd.Flags().Changed("url") {
 			var err error
-			url, err = promptLine(cmd.OutOrStdout(), cmd.InOrStdin(), "URL (optional): ")
+			url, err = promptHuhLine(cmd.OutOrStdout(), cmd.InOrStdin(), "URL (optional)")
 			if err != nil {
 				return err
 			}
@@ -85,7 +85,7 @@ var secretAddCmd = &cobra.Command{
 		notes, _ := cmd.Flags().GetString("notes")
 		if !cmd.Flags().Changed("notes") {
 			var err error
-			notes, err = promptLine(cmd.OutOrStdout(), cmd.InOrStdin(), "Notes (optional): ")
+			notes, err = promptHuhLine(cmd.OutOrStdout(), cmd.InOrStdin(), "Notes (optional)")
 			if err != nil {
 				return err
 			}
@@ -107,7 +107,7 @@ var secretAddCmd = &cobra.Command{
 		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Secret '%s' added (UID: %s)\n", name, shortUID(uid))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("Secret '%s' added (UID: %s)", name, shortUID(uid))))
 		return nil
 	},
 }
@@ -152,7 +152,7 @@ var secretEditCmd = &cobra.Command{
 		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Secret '%s' updated.\n", name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("Secret '%s' updated.", name)))
 		return nil
 	},
 }
@@ -194,7 +194,7 @@ var secretRemoveCmd = &cobra.Command{
 		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Secret '%s' removed.\n", name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("Secret '%s' removed.", name)))
 		return nil
 	},
 }
@@ -242,7 +242,7 @@ var secretMoveCmd = &cobra.Command{
 		if destEnvName != "" {
 			msg += fmt.Sprintf(" (env: '%s')", destEnvName)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s.\n", msg)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(msg+"."))
 		return nil
 	},
 }
@@ -304,7 +304,7 @@ var secretCopyCmd = &cobra.Command{
 		if destEnvName != "" {
 			msg += fmt.Sprintf(" (env: '%s')", destEnvName)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s (UID: %s).\n", msg, shortUID(uid))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("%s (UID: %s).", msg, shortUID(uid))))
 		return nil
 	},
 }

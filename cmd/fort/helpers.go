@@ -8,6 +8,8 @@ import (
 	"io"
 	"strings"
 
+	"charm.land/huh/v2"
+
 	"github.com/youruser/fortbyte/internal/crypto"
 	"github.com/youruser/fortbyte/internal/session"
 	"github.com/youruser/fortbyte/internal/vault"
@@ -89,6 +91,42 @@ func promptLine(w io.Writer, r io.Reader, prompt string) (string, error) {
 		return "", fmt.Errorf("read input: %w", err)
 	}
 	return strings.TrimSpace(input), nil
+}
+
+// promptHuhLine uses huh to prompt for visible text input.
+func promptHuhLine(w io.Writer, r io.Reader, prompt string) (string, error) {
+	var value string
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title(prompt).Value(&value),
+		),
+	).WithInput(r).WithOutput(w).WithShowHelp(false).Run()
+	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", fmt.Errorf("prompt cancelled: %w", err)
+		}
+		return "", err
+	}
+	return value, nil
+}
+
+// promptHuhConfirm uses huh to ask yes/no.
+//
+//nolint:unused // reserved for future confirmation prompts
+func promptHuhConfirm(w io.Writer, r io.Reader, title string) (bool, error) {
+	var confirmed bool
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().Title(title).Value(&confirmed),
+		),
+	).WithInput(r).WithOutput(w).WithShowHelp(false).Run()
+	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return false, fmt.Errorf("prompt cancelled: %w", err)
+		}
+		return false, err
+	}
+	return confirmed, nil
 }
 
 // confirmDeletion asks for yes/no and returns (true, nil) if confirmed.

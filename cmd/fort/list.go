@@ -121,7 +121,7 @@ var listCmd = &cobra.Command{
 			return nil
 		}
 		if len(projects) > 0 {
-			fmt.Fprintln(cmd.OutOrStdout(), "Projects:")
+			fmt.Fprintln(cmd.OutOrStdout(), styleTitle.Render("Projects:"))
 			projectKeys := sortedKeysByName(projects, func(p vault.Project) string { return p.Name })
 			if projectUID != "" {
 				if _, ok := projects[projectUID]; ok {
@@ -132,7 +132,7 @@ var listCmd = &cobra.Command{
 			}
 			for _, pUID := range projectKeys {
 				p := projects[pUID]
-				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", p.Name)
+				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", styleProject.Render(p.Name))
 				envs := v.ListEnvironmentsByProject(pUID)
 				if len(envs) > 0 {
 					envKeys := sortedKeysByName(envs, func(e vault.Environment) string { return e.Name })
@@ -145,12 +145,12 @@ var listCmd = &cobra.Command{
 					}
 					for _, eUID := range envKeys {
 						e := envs[eUID]
-						fmt.Fprintf(cmd.OutOrStdout(), "    %s\n", e.Name)
+						fmt.Fprintf(cmd.OutOrStdout(), "    %s\n", styleEnv.Render(e.Name))
 						envSecrets := v.ListSecretsByProjectAndEnvironment(pUID, eUID)
 						secKeys := sortedKeysByName(envSecrets, func(s vault.Secret) string { return s.Name })
 						for _, sUID := range secKeys {
 							s := envSecrets[sUID]
-							fmt.Fprintf(cmd.OutOrStdout(), "      %s (UID: %s)\n", s.Name, shortUID(sUID))
+							fmt.Fprintf(cmd.OutOrStdout(), "      %s (UID: %s)\n", styleSecret.Render(s.Name), styleUID.Render(shortUID(sUID)))
 						}
 					}
 				}
@@ -159,7 +159,7 @@ var listCmd = &cobra.Command{
 				for _, sUID := range secKeys {
 					s := projSecrets[sUID]
 					if s.EnvironmentUID == "" {
-						fmt.Fprintf(cmd.OutOrStdout(), "    %s (UID: %s)\n", s.Name, shortUID(sUID))
+						fmt.Fprintf(cmd.OutOrStdout(), "    %s (UID: %s)\n", styleSecret.Render(s.Name), styleUID.Render(shortUID(sUID)))
 					}
 				}
 			}
@@ -176,10 +176,10 @@ var listCmd = &cobra.Command{
 				if len(projects) > 0 {
 					fmt.Fprintln(cmd.OutOrStdout())
 				}
-				fmt.Fprintln(cmd.OutOrStdout(), "Standalone secrets:")
+				fmt.Fprintln(cmd.OutOrStdout(), styleTitle.Render("Standalone secrets:"))
 				sort.Slice(standalone, func(i, j int) bool { return standalone[i].name < standalone[j].name })
 				for _, se := range standalone {
-					fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", se.name, shortUID(se.uid))
+					fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", styleSecret.Render(se.name), styleUID.Render(shortUID(se.uid)))
 				}
 			}
 		}

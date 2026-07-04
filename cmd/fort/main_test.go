@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -16,6 +17,14 @@ import (
 	"github.com/youruser/fortbyte/internal/session"
 	"github.com/youruser/fortbyte/internal/vault"
 )
+
+// ansiRe matches ANSI escape sequences.
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// stripANSI removes ANSI escape sequences from s.
+func stripANSI(s string) string {
+	return ansiRe.ReplaceAllString(s, "")
+}
 
 // mockReadPassword overrides readPasswordFn for tests that call rootCmd.Execute()
 // on paths that hit getKey (which reads a password from the terminal).
@@ -323,6 +332,29 @@ func TestConfirmDeletionEOF(t *testing.T) {
 	_, err := confirmDeletion(&buf, r, "test")
 	if err == nil {
 		t.Error("expected error on EOF")
+	}
+}
+
+func TestStripANSI(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"no ansi", "hello world", "hello world"},
+		{"empty", "", ""},
+		{"single seq", "\x1b[31mred\x1b[0m", "red"},
+		{"nested", "\x1b[1m\x1b[32mgreen bold\x1b[0m", "green bold"},
+		{"mixed", "before \x1b[34mblue\x1b[0m after", "before blue after"},
+		{"multiple", "\x1b[31ma\x1b[0m \x1b[32mb\x1b[0m", "a b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripANSI(tt.input)
+			if got != tt.want {
+				t.Errorf("stripANSI(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -1666,11 +1698,11 @@ func TestSecretRevealHumanStillWorks(t *testing.T) {
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("reveal: %v", err)
 	}
-	output := buf.String()
-	if !strings.Contains(output, "Name:    MY_SECRET") {
+	output := stripANSI(buf.String())
+	if !strings.Contains(output, "Name:") || !strings.Contains(output, "MY_SECRET") {
 		t.Errorf("human output missing name, got:\n%s", output)
 	}
-	if !strings.Contains(output, "Value:   val") {
+	if !strings.Contains(output, "Value:") || !strings.Contains(output, "val") {
 		t.Errorf("human output missing value, got:\n%s", output)
 	}
 	if strings.Contains(output, "{") {

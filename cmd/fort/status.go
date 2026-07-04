@@ -25,10 +25,10 @@ var statusCmd = &cobra.Command{
 		vaultPath := filepath.Join(vaultDir, vault.FileName)
 		sessionPath := filepath.Join(vaultDir, "session")
 
-		fmt.Fprintf(cmd.OutOrStdout(), "Vault:   %s\n", vaultPath)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Vault:"), vaultPath)
 
 		if !session.IsValid(vaultDir) {
-			fmt.Fprintln(cmd.OutOrStdout(), "State:   locked")
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("State:"), styleWarning.Render("locked"))
 			info, err := os.Stat(sessionPath)
 			switch {
 			case os.IsNotExist(err):
@@ -55,8 +55,8 @@ var statusCmd = &cobra.Command{
 		if remaining < 0 {
 			remaining = 0
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "State:   unlocked")
-		fmt.Fprintf(cmd.OutOrStdout(), "Expires: in %s\n", remaining.Truncate(time.Second))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("State:"), styleSuccess.Render("unlocked"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Expires:"), fmt.Sprintf("in %s", remaining.Truncate(time.Second)))
 
 		// If the vault or keyring is unavailable here, still show what we know
 		// (state/expiry). Same graceful-degrade pattern as LoadPassword above.
@@ -77,9 +77,9 @@ var statusCmd = &cobra.Command{
 			fmt.Fprintf(cmd.OutOrStdout(), "unavailable (open vault: %v)\n", err)
 			return nil
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Projects:     %d\n", len(v.ListProjects()))
-		fmt.Fprintf(cmd.OutOrStdout(), "Environments: %d\n", len(v.ListEnvironments()))
-		fmt.Fprintf(cmd.OutOrStdout(), "Secrets:      %d\n", len(v.ListSecrets()))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d\n", styleLabel.Render("Projects:"), len(v.ListProjects()))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d\n", styleLabel.Render("Environments:"), len(v.ListEnvironments()))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %d\n", styleLabel.Render("Secrets:"), len(v.ListSecrets()))
 		return nil
 	},
 }

@@ -45,7 +45,7 @@ var projectAddCmd = &cobra.Command{
 		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Project '%s' added (UID: %s)\n", name, shortUID(uid))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("Project '%s' added (UID: %s)", name, shortUID(uid))))
 		return nil
 	},
 }
@@ -93,7 +93,7 @@ var projectEditCmd = &cobra.Command{
 		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Project '%s' updated.\n", name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("Project '%s' updated.", name)))
 		return nil
 	},
 }
@@ -129,7 +129,7 @@ var projectRemoveCmd = &cobra.Command{
 		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Project '%s' removed.\n", name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("Project '%s' removed.", name)))
 		return nil
 	},
 }
@@ -171,7 +171,7 @@ var projectListCmd = &cobra.Command{
 		}
 		for _, uid := range keys {
 			p := projects[uid]
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s (UID: %s)\n", p.Name, shortUID(uid))
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", styleProject.Render(fmt.Sprintf("%-20s", p.Name)), styleUID.Render(shortUID(uid)))
 		}
 		return nil
 	},
@@ -230,30 +230,30 @@ var projectShowCmd = &cobra.Command{
 			detail.SecretCount = len(v.ListSecretsByProject(uid))
 			return printJSON(cmd.OutOrStdout(), detail)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Name:        %s\n", p.Name)
-		fmt.Fprintf(cmd.OutOrStdout(), "UID:         %s\n", shortUID(uid))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Name:"), p.Name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("UID:"), shortUID(uid))
 		if p.Description != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "Description: %s\n", p.Description)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Description:"), p.Description)
 		}
 		if p.URL != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "URL:         %s\n", p.URL)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("URL:"), p.URL)
 		}
 		if p.Notes != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "Notes:       %s\n", p.Notes)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Notes:"), p.Notes)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Created:     %s\n", p.CreatedAt.Format("2006-01-02 15:04:05"))
-		fmt.Fprintf(cmd.OutOrStdout(), "Updated:     %s\n", p.UpdatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Created:"), p.CreatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Updated:"), p.UpdatedAt.Format("2006-01-02 15:04:05"))
 		envs := v.ListEnvironmentsByProject(uid)
-		fmt.Fprintf(cmd.OutOrStdout(), "\nEnvironments (%d):\n", len(envs))
+		fmt.Fprintf(cmd.OutOrStdout(), "\n%s\n", styleTitle.Render(fmt.Sprintf("Environments (%d):", len(envs))))
 		if len(envs) > 0 {
 			envKeys := sortedKeysByName(envs, func(e vault.Environment) string { return e.Name })
 			for _, eUID := range envKeys {
 				e := envs[eUID]
-				fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", e.Name, shortUID(eUID))
+				fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", styleEnv.Render(e.Name), styleUID.Render(shortUID(eUID)))
 			}
 		}
 		projSecrets := v.ListSecretsByProject(uid)
-		fmt.Fprintf(cmd.OutOrStdout(), "\nSecrets: %d\n", len(projSecrets))
+		fmt.Fprintf(cmd.OutOrStdout(), "\n%s\n", styleTitle.Render(fmt.Sprintf("Secrets: %d", len(projSecrets))))
 		return nil
 	},
 }

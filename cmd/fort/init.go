@@ -21,6 +21,11 @@ var initCmd = &cobra.Command{
 		if vaultDir == "" {
 			return errors.New("cannot determine home directory")
 		}
+		vaultPath := filepath.Join(vaultDir, vault.FileName)
+		if _, err := os.Stat(vaultPath); err == nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", styleError.Render(fmt.Sprintf("Vault already exists at %s", vaultPath)))
+			return nil
+		}
 		fmt.Fprintf(cmd.ErrOrStderr(), "Enter master password (min %d chars): ", minPasswordLen)
 		password, err := readPasswordFn()
 		if err != nil {
@@ -36,8 +41,9 @@ var initCmd = &cobra.Command{
 		if err := runInit(vaultDir, password, confirm); err != nil {
 			return err
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Vault created successfully!")
-		fmt.Fprintf(cmd.OutOrStdout(), "Location: %s\n", filepath.Join(vaultDir, vault.FileName))
+		fmt.Fprintln(cmd.OutOrStdout(), styleTitle.Render(asciiLogo))
+		fmt.Fprintln(cmd.OutOrStdout(), styleSuccess.Render("Vault created successfully!"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Location:"), filepath.Join(vaultDir, vault.FileName))
 		return nil
 	},
 }

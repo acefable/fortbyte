@@ -59,7 +59,7 @@ var envAddCmd = &cobra.Command{
 		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Environment '%s' added (UID: %s)\n", name, shortUID(uid))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("Environment '%s' added (UID: %s)", name, shortUID(uid))))
 		return nil
 	},
 }
@@ -108,7 +108,7 @@ var envEditCmd = &cobra.Command{
 		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Environment '%s' updated.\n", name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("Environment '%s' updated.", name)))
 		return nil
 	},
 }
@@ -149,7 +149,7 @@ var envRemoveCmd = &cobra.Command{
 		if err := saveVault(v, vaultDir, key, cmd.ErrOrStderr()); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Environment '%s' removed.\n", name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleSuccess.Render(fmt.Sprintf("Environment '%s' removed.", name)))
 		return nil
 	},
 }
@@ -201,9 +201,9 @@ var envListCmd = &cobra.Command{
 			return printJSON(cmd.OutOrStdout(), items)
 		}
 		if projectNameForOutput != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "Environments in '%s':\n", projectNameForOutput)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", styleTitle.Render(fmt.Sprintf("Environments in '%s':", projectNameForOutput)))
 		} else {
-			fmt.Fprintln(cmd.OutOrStdout(), "All environments:")
+			fmt.Fprintln(cmd.OutOrStdout(), styleTitle.Render("All environments:"))
 		}
 		if len(envs) == 0 {
 			fmt.Fprintln(cmd.OutOrStdout(), "  (none)")
@@ -211,7 +211,7 @@ var envListCmd = &cobra.Command{
 		}
 		for _, uid := range keys {
 			e := envs[uid]
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s (UID: %s)\n", e.Name, shortUID(uid))
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", styleEnv.Render(fmt.Sprintf("%-20s", e.Name)), styleUID.Render(shortUID(uid)))
 		}
 		return nil
 	},
@@ -273,24 +273,24 @@ var envShowCmd = &cobra.Command{
 			}
 			return printJSON(cmd.OutOrStdout(), detail)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Name:        %s\n", e.Name)
-		fmt.Fprintf(cmd.OutOrStdout(), "UID:         %s\n", shortUID(uid))
-		fmt.Fprintf(cmd.OutOrStdout(), "Project:     %s\n", p.Name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Name:"), e.Name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("UID:"), shortUID(uid))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Project:"), p.Name)
 		if e.Description != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "Description: %s\n", e.Description)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Description:"), e.Description)
 		}
 		if e.Notes != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "Notes:       %s\n", e.Notes)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Notes:"), e.Notes)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Created:     %s\n", e.CreatedAt.Format("2006-01-02 15:04:05"))
-		fmt.Fprintf(cmd.OutOrStdout(), "Updated:     %s\n", e.UpdatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Created:"), e.CreatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Updated:"), e.UpdatedAt.Format("2006-01-02 15:04:05"))
 		envSecrets := v.ListSecretsByProjectAndEnvironment(p.UID, uid)
-		fmt.Fprintf(cmd.OutOrStdout(), "\nSecrets (%d):\n", len(envSecrets))
+		fmt.Fprintf(cmd.OutOrStdout(), "\n%s\n", styleTitle.Render(fmt.Sprintf("Secrets (%d):", len(envSecrets))))
 		if len(envSecrets) > 0 {
 			secKeys := sortedKeysByName(envSecrets, func(s vault.Secret) string { return s.Name })
 			for _, sUID := range secKeys {
 				s := envSecrets[sUID]
-				fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", s.Name, shortUID(sUID))
+				fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", styleSecret.Render(s.Name), styleUID.Render(shortUID(sUID)))
 			}
 		}
 		return nil
