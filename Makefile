@@ -1,7 +1,8 @@
-.PHONY: all build run test test-race cover fmt vet lint sec vuln tidy ci clean
+.PHONY: all build run build-server run-server test test-race cover fmt vet lint sec vuln tidy ci clean
 
 GO ?= go
 BINARY := fort
+SERVER_BINARY := fortbyte-server
 PKG := ./...
 COVERAGE_FILE := coverage.out
 
@@ -15,6 +16,14 @@ build:
 # Run the CLI from source.
 run:
 	$(GO) run ./cmd/fort
+
+# Build the server binary.
+build-server:
+	CGO_ENABLED=0 GOFLAGS=-trimpath $(GO) build -o $(SERVER_BINARY) ./cmd/server
+
+# Run server from source.
+run-server:
+	$(GO) run ./cmd/server
 
 # Run all tests. -count=1 disables test result caching.
 test:
@@ -66,4 +75,4 @@ ci: tidy fmt vet lint test-race sec vuln
 
 # Remove build artifacts.
 clean:
-	rm -f $(BINARY) $(COVERAGE_FILE) coverage.html
+	rm -f $(BINARY) $(SERVER_BINARY) $(COVERAGE_FILE) coverage.html
