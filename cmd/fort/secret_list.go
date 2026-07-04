@@ -165,27 +165,27 @@ var secretRevealCmd = &cobra.Command{
 			}
 			return printJSON(cmd.OutOrStdout(), detail)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Name:"), s.Name)
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("UID:"), shortUID(uid))
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Value:"), s.Value)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Name:")), s.Name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "UID:")), shortUID(uid))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Value:")), s.Value)
 		if s.URL != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("URL:"), s.URL)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "URL:")), s.URL)
 		}
 		if s.Notes != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Notes:"), s.Notes)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Notes:")), s.Notes)
 		}
 		if s.ProjectUID != "" {
 			if p, ok := v.GetProject(s.ProjectUID); ok {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Project:"), p.Name)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Project:")), p.Name)
 			}
 		}
 		if s.EnvironmentUID != "" {
 			if e, ok := v.GetEnvironment(s.EnvironmentUID); ok {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Env:"), e.Name)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Env:")), e.Name)
 			}
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Created:"), s.CreatedAt.Format("2006-01-02 15:04:05"))
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Updated:"), s.UpdatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Created:")), s.CreatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Updated:")), s.UpdatedAt.Format("2006-01-02 15:04:05"))
 		return nil
 	},
 }
@@ -248,26 +248,26 @@ var secretShowCmd = &cobra.Command{
 			}
 			return printJSON(cmd.OutOrStdout(), detail)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Name:"), s.Name)
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("UID:"), shortUID(uid))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Name:")), s.Name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "UID:")), shortUID(uid))
 		if s.URL != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("URL:"), s.URL)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "URL:")), s.URL)
 		}
 		if s.Notes != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Notes:"), s.Notes)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Notes:")), s.Notes)
 		}
 		if s.ProjectUID != "" {
 			if p, ok := v.GetProject(s.ProjectUID); ok {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Project:"), p.Name)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Project:")), p.Name)
 			}
 		}
 		if s.EnvironmentUID != "" {
 			if e, ok := v.GetEnvironment(s.EnvironmentUID); ok {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Env:"), e.Name)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Env:")), e.Name)
 			}
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Created:"), s.CreatedAt.Format("2006-01-02 15:04:05"))
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Updated:"), s.UpdatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Created:")), s.CreatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render(fmt.Sprintf("%-12s", "Updated:")), s.UpdatedAt.Format("2006-01-02 15:04:05"))
 		return nil
 	},
 }

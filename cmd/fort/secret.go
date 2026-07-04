@@ -77,7 +77,7 @@ var secretAddCmd = &cobra.Command{
 		url, _ := cmd.Flags().GetString("url")
 		if !cmd.Flags().Changed("url") {
 			var err error
-			url, err = promptHuhLine("URL (optional)")
+			url, err = promptHuhLine(cmd.OutOrStdout(), cmd.InOrStdin(), "URL (optional)")
 			if err != nil {
 				return err
 			}
@@ -85,7 +85,7 @@ var secretAddCmd = &cobra.Command{
 		notes, _ := cmd.Flags().GetString("notes")
 		if !cmd.Flags().Changed("notes") {
 			var err error
-			notes, err = promptHuhLine("Notes (optional)")
+			notes, err = promptHuhLine(cmd.OutOrStdout(), cmd.InOrStdin(), "Notes (optional)")
 			if err != nil {
 				return err
 			}

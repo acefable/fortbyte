@@ -171,7 +171,7 @@ var projectListCmd = &cobra.Command{
 		}
 		for _, uid := range keys {
 			p := projects[uid]
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s (UID: %s)\n", styleProject.Render(p.Name), styleUID.Render(shortUID(uid)))
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", styleProject.Render(fmt.Sprintf("%-20s", p.Name)), styleUID.Render(shortUID(uid)))
 		}
 		return nil
 	},

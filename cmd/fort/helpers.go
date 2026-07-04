@@ -94,27 +94,37 @@ func promptLine(w io.Writer, r io.Reader, prompt string) (string, error) {
 }
 
 // promptHuhLine uses huh to prompt for visible text input.
-func promptHuhLine(prompt string) (string, error) {
+func promptHuhLine(w io.Writer, r io.Reader, prompt string) (string, error) {
 	var value string
-	err := huh.NewInput().
-		Title(prompt).
-		Value(&value).
-		Run()
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title(prompt).Value(&value),
+		),
+	).WithInput(r).WithOutput(w).WithShowHelp(false).Run()
 	if err != nil {
-		return "", fmt.Errorf("prompt cancelled: %w", err)
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", fmt.Errorf("prompt cancelled: %w", err)
+		}
+		return "", err
 	}
 	return value, nil
 }
 
 // promptHuhConfirm uses huh to ask yes/no.
-func promptHuhConfirm(title string) (bool, error) {
+//
+//nolint:unused // reserved for future confirmation prompts
+func promptHuhConfirm(w io.Writer, r io.Reader, title string) (bool, error) {
 	var confirmed bool
-	err := huh.NewConfirm().
-		Title(title).
-		Value(&confirmed).
-		Run()
+	err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().Title(title).Value(&confirmed),
+		),
+	).WithInput(r).WithOutput(w).WithShowHelp(false).Run()
 	if err != nil {
-		return false, fmt.Errorf("prompt cancelled: %w", err)
+		if errors.Is(err, huh.ErrUserAborted) {
+			return false, fmt.Errorf("prompt cancelled: %w", err)
+		}
+		return false, err
 	}
 	return confirmed, nil
 }

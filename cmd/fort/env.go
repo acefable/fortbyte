@@ -211,7 +211,7 @@ var envListCmd = &cobra.Command{
 		}
 		for _, uid := range keys {
 			e := envs[uid]
-			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s (UID: %s)\n", styleEnv.Render(e.Name), styleUID.Render(shortUID(uid)))
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s (UID: %s)\n", styleEnv.Render(fmt.Sprintf("%-20s", e.Name)), styleUID.Render(shortUID(uid)))
 		}
 		return nil
 	},
