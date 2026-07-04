@@ -19,7 +19,7 @@ var lockCmd = &cobra.Command{
 		if err := session.Clear(vaultDir); err != nil {
 			return fmt.Errorf("lock vault: %w", err)
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Vault locked. Session cleared.")
+		fmt.Fprintln(cmd.OutOrStdout(), styleSuccess.Render("Vault locked. Session cleared."))
 		return nil
 	},
 }

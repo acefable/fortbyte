@@ -23,8 +23,8 @@ var resetCmd = &cobra.Command{
 		if _, err := os.Stat(vaultDir); os.IsNotExist(err) {
 			return fmt.Errorf("no vault found at %s", vaultDir)
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "WARNING: This will permanently delete your vault and all secrets!")
-		fmt.Fprintln(cmd.OutOrStdout(), "This action is IRREVERSIBLE. All data will be lost.")
+		fmt.Fprintln(cmd.OutOrStdout(), styleWarning.Render("WARNING: This will permanently delete your vault and all secrets!"))
+		fmt.Fprintln(cmd.OutOrStdout(), styleWarning.Render("This action is IRREVERSIBLE. All data will be lost."))
 		fmt.Fprintln(cmd.OutOrStdout())
 		fmt.Fprintf(cmd.OutOrStdout(), "Vault location: %s\n", vaultDir)
 		fmt.Fprintln(cmd.OutOrStdout())
@@ -48,7 +48,7 @@ var resetCmd = &cobra.Command{
 		if err := os.RemoveAll(vaultDir); err != nil {
 			return fmt.Errorf("delete vault: %w", err)
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Vault directory deleted successfully. All secrets have been removed.")
+		fmt.Fprintln(cmd.OutOrStdout(), styleSuccess.Render("Vault directory deleted successfully. All secrets have been removed."))
 		return nil
 	},
 }

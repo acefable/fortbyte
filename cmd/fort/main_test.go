@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -16,6 +17,13 @@ import (
 	"github.com/youruser/fortbyte/internal/session"
 	"github.com/youruser/fortbyte/internal/vault"
 )
+
+// stripANSI removes ANSI escape sequences from s.
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string {
+	return ansiRe.ReplaceAllString(s, "")
+}
 
 // mockReadPassword overrides readPasswordFn for tests that call rootCmd.Execute()
 // on paths that hit getKey (which reads a password from the terminal).
@@ -1666,11 +1674,11 @@ func TestSecretRevealHumanStillWorks(t *testing.T) {
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("reveal: %v", err)
 	}
-	output := buf.String()
-	if !strings.Contains(output, "Name:    MY_SECRET") {
+	output := stripANSI(buf.String())
+	if !strings.Contains(output, "Name: MY_SECRET") {
 		t.Errorf("human output missing name, got:\n%s", output)
 	}
-	if !strings.Contains(output, "Value:   val") {
+	if !strings.Contains(output, "Value: val") {
 		t.Errorf("human output missing value, got:\n%s", output)
 	}
 	if strings.Contains(output, "{") {

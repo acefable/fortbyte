@@ -36,8 +36,8 @@ var initCmd = &cobra.Command{
 		if err := runInit(vaultDir, password, confirm); err != nil {
 			return err
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Vault created successfully!")
-		fmt.Fprintf(cmd.OutOrStdout(), "Location: %s\n", filepath.Join(vaultDir, vault.FileName))
+		fmt.Fprintln(cmd.OutOrStdout(), styleSuccess.Render("Vault created successfully!"))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", styleLabel.Render("Location:"), filepath.Join(vaultDir, vault.FileName))
 		return nil
 	},
 }

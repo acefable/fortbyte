@@ -8,6 +8,8 @@ import (
 	"io"
 	"strings"
 
+	"charm.land/huh/v2"
+
 	"github.com/youruser/fortbyte/internal/crypto"
 	"github.com/youruser/fortbyte/internal/session"
 	"github.com/youruser/fortbyte/internal/vault"
@@ -89,6 +91,32 @@ func promptLine(w io.Writer, r io.Reader, prompt string) (string, error) {
 		return "", fmt.Errorf("read input: %w", err)
 	}
 	return strings.TrimSpace(input), nil
+}
+
+// promptHuhLine uses huh to prompt for visible text input.
+func promptHuhLine(prompt string) (string, error) {
+	var value string
+	err := huh.NewInput().
+		Title(prompt).
+		Value(&value).
+		Run()
+	if err != nil {
+		return "", fmt.Errorf("prompt cancelled: %w", err)
+	}
+	return value, nil
+}
+
+// promptHuhConfirm uses huh to ask yes/no.
+func promptHuhConfirm(title string) (bool, error) {
+	var confirmed bool
+	err := huh.NewConfirm().
+		Title(title).
+		Value(&confirmed).
+		Run()
+	if err != nil {
+		return false, fmt.Errorf("prompt cancelled: %w", err)
+	}
+	return confirmed, nil
 }
 
 // confirmDeletion asks for yes/no and returns (true, nil) if confirmed.
