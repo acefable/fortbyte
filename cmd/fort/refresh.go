@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -20,7 +21,10 @@ var refreshCmd = &cobra.Command{
 
 		refreshToken, err := session.LoadRefreshToken()
 		if err != nil {
-			return fmt.Errorf("no refresh token found: run 'fort login' first")
+			if errors.Is(err, session.ErrNoSession) {
+				return fmt.Errorf("no refresh token found: run 'fort login' first")
+			}
+			return fmt.Errorf("load refresh token: %w", err)
 		}
 
 		c := client.New(serverURL)

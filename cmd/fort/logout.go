@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -26,6 +27,9 @@ var logoutCmd = &cobra.Command{
 
 		accessToken, loadErr := session.LoadAccessToken()
 		if loadErr != nil {
+			if !errors.Is(loadErr, session.ErrNoSession) {
+				return fmt.Errorf("load access token: %w", loadErr)
+			}
 			// No token stored — just clear whatever is there.
 			if clearErr := session.ClearHostedSession(); clearErr != nil {
 				return clearErr

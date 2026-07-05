@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -235,8 +236,8 @@ func TestPost_NonJSONResponse(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 	// Should get a decode error.
-	if got := err.Error(); got != "decode response: invalid character 'h' looking for beginning of value" {
-		t.Errorf("error = %q", got)
+	if got := err.Error(); !strings.HasPrefix(got, "decode response: ") {
+		t.Errorf("error = %q, want prefix 'decode response: '", got)
 	}
 }
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -20,7 +19,7 @@ var loginCmd = &cobra.Command{
 			return err
 		}
 
-		email, err := promptLine(cmd.OutOrStdout(), os.Stdin, "Email: ")
+		email, err := promptLine(cmd.OutOrStdout(), cmd.InOrStdin(), "Email: ")
 		if err != nil {
 			return fmt.Errorf("read email: %w", err)
 		}
@@ -45,7 +44,7 @@ var loginCmd = &cobra.Command{
 		}
 
 		if err := session.StoreTokens(tok.AccessToken, tok.RefreshToken); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not store session tokens: %v\n", err)
+			return fmt.Errorf("store tokens: %w", err)
 		}
 
 		fmt.Fprintln(cmd.OutOrStdout(), styleSuccess.Render("Logged in successfully."))
