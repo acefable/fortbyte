@@ -149,4 +149,9 @@ func TestUnitDeleteAPIKey_CrossUser(t *testing.T) {
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rr.Code)
 	}
+
+	// Key must still exist — the unauthorized delete should have been a no-op.
+	if err := h.APIKeys.Delete(context.Background(), key.ID, owner.ID); err != nil {
+		t.Errorf("key should still exist after cross-user delete attempt: %v", err)
+	}
 }

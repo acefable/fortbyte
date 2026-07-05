@@ -7,7 +7,7 @@ services:
       - "8085:8080"
     environment:
       PORT: "8080"
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in .env or environment}
       JWT_SECRET: ${JWT_SECRET}
       MASTER_KEY: ${MASTER_KEY}
       LOG_LEVEL: "debug"
