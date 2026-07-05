@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // testServer starts an httptest.Server and returns the client pointed at it.
@@ -14,7 +15,10 @@ func testServer(t *testing.T, handler http.Handler) (*Client, *httptest.Server) 
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	return New(srv.URL), srv
+	return &Client{
+		baseURL:    srv.URL,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+	}, srv
 }
 
 func TestRegister_Success(t *testing.T) {
@@ -236,11 +240,25 @@ func TestPost_NonJSONResponse(t *testing.T) {
 	}
 }
 
-func TestNew_TrimsTrailingSlash(t *testing.T) {
+func TestNew_NormalizesBaseURL(t *testing.T) {
 	t.Parallel()
-	c := New("http://localhost:8080/api/v1/")
-	if c.baseURL != "http://localhost:8080/api/v1" {
-		t.Errorf("baseURL = %q, trailing slash not trimmed", c.baseURL)
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"trims trailing slash", "http://localhost:8080/api/v1/", "http://localhost:8080/api/v1"},
+		{"appends /api/v1", "http://localhost:8080", "http://localhost:8080/api/v1"},
+		{"appends /api/v1 with trailing slash", "http://localhost:8080/", "http://localhost:8080/api/v1"},
+		{"no double append", "http://localhost:8080/api/v1", "http://localhost:8080/api/v1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := New(tt.input)
+			if c.baseURL != tt.expected {
+				t.Errorf("baseURL = %q, want %q", c.baseURL, tt.expected)
+			}
+		})
 	}
 }
 

@@ -31,10 +31,15 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// New creates a client for the given base URL (e.g., "http://localhost:8080/api/v1").
+// New creates a client for the given server URL (e.g., "http://localhost:8080").
+// /api/v1 is appended automatically if not already present.
 func New(baseURL string) *Client {
+	baseURL = strings.TrimRight(baseURL, "/")
+	if !strings.HasSuffix(baseURL, "/api/v1") {
+		baseURL += "/api/v1"
+	}
 	return &Client{
-		baseURL:    strings.TrimRight(baseURL, "/"),
+		baseURL:    baseURL,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
