@@ -1,0 +1,10 @@
+.git
+.env
+*.md
+fort
+fortbyte-server
+coverage.out
+coverage.html
+.opencode
+demo
+docs
