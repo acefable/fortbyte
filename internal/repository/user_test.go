@@ -79,6 +79,8 @@ func (r *fakeRow) Scan(dest ...any) error {
 			*dst = r.values[i].(string)
 		case *time.Time:
 			*dst = r.values[i].(time.Time)
+		default:
+			panic(fmt.Sprintf("fakeRow.Scan: unsupported dest type %T at index %d", d, i))
 		}
 	}
 	return nil
