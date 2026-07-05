@@ -10,7 +10,7 @@ import (
 type User struct {
 	ID           uuid.UUID
 	Email        string
-	PasswordHash string
+	PasswordHash string `json:"-"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

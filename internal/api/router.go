@@ -2,9 +2,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -26,13 +28,18 @@ func NewRouter(db *pgxpool.Pool) *chi.Mux {
 
 func healthHandler(db *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
 		dbStatus := "up"
-		if err := repository.Ping(r.Context(), db); err != nil {
+		status := "ok"
+		if err := repository.Ping(ctx, db); err != nil {
 			dbStatus = "down"
+			status = "unhealthy"
 		}
 
 		resp := map[string]string{
-			"status": "ok",
+			"status": status,
 			"db":     dbStatus,
 		}
 

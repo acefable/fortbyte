@@ -16,15 +16,24 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
-
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	db, err := repository.NewPool(ctx, cfg.DatabaseURL)
+	// Apply configured log level.
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
+		level = slog.LevelInfo
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+
+	// Bounded context for initial DB connect.
+	connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db, err := repository.NewPool(connectCtx, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
@@ -32,7 +41,7 @@ func main() {
 	defer db.Close()
 
 	// Run database migrations.
-	migrationsPath := "app/migrations"
+	migrationsPath := "migrations"
 	if err := repository.RunMigrations(cfg.DatabaseURL, migrationsPath); err != nil {
 		slog.Error("failed to run migrations", "error", err)
 		os.Exit(1)
@@ -54,7 +63,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		slog.Info("server starting", "port", cfg.Port, "log_level", cfg.LogLevel)
+		slog.Info("server starting", "port", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server error", "error", err)
 			os.Exit(1)

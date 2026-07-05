@@ -8,8 +8,9 @@ RUN CGO_ENABLED=0 GOFLAGS=-trimpath go build -o fortbyte-server ./cmd/server
 
 # Runtime stage
 FROM gcr.io/distroless/static-debian12
-COPY --from=builder /app/fortbyte-server /fortbyte-server
+WORKDIR /app
+COPY --from=builder /app/fortbyte-server /app/fortbyte-server
 COPY --from=builder /app/cmd/server/migrations /app/migrations
 EXPOSE 8080
 USER nonroot:nonroot
-ENTRYPOINT ["/fortbyte-server"]
+ENTRYPOINT ["/app/fortbyte-server"]
