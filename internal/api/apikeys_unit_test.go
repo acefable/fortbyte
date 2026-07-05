@@ -118,3 +118,35 @@ func TestUnitDeleteAPIKey_NotFound(t *testing.T) {
 		t.Errorf("status = %d, want 404", rr.Code)
 	}
 }
+
+func TestUnitDeleteAPIKey_CrossUser(t *testing.T) {
+	h := newTestHandlers()
+	owner := setupTestUser(t, h, "owner@example.com", "password123")
+	other := setupTestUser(t, h, "other@example.com", "password123")
+
+	// Create a key belonging to owner.
+	rawKey, err := generateAPIKey()
+	if err != nil {
+		t.Fatalf("generate api key: %v", err)
+	}
+	keyHash := hashToken(rawKey)
+	key, err := h.APIKeys.Create(context.Background(), owner.ID, "owner-key", keyHash, nil)
+	if err != nil {
+		t.Fatalf("create fake key: %v", err)
+	}
+
+	// Attempt to delete as other user.
+	req := httptest.NewRequest(http.MethodDelete, "/api-keys/"+key.ID.String(), nil)
+	ctx := context.WithValue(req.Context(), userIDKey, other.ID)
+	routeCtx := chi.NewRouteContext()
+	routeCtx.URLParams.Add("keyID", key.ID.String())
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, routeCtx)
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	h.DeleteAPIKey(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rr.Code)
+	}
+}
