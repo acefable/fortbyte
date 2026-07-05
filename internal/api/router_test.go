@@ -7,23 +7,18 @@ import (
 )
 
 func TestNewRouterRoutesHealth(t *testing.T) {
-	// nil pool — health handler will call Ping which panics on nil pool.
-	// We only verify the route is registered by checking 404 for unknown paths.
-	r := NewRouter(nil)
+	r := NewRouter(nil) // nil pool → Recoverer catches panic → 500
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	rr := httptest.NewRecorder()
 
-	// This will panic because Ping dereferences nil pool.
-	// That's expected — the handler requires a real pool.
-	defer func() {
-		if r := recover(); r != nil {
-			// Expected: nil pool causes panic in Ping.
-			t.Skip("health handler requires real db pool, skipped nil-pool test")
-		}
-	}()
-
 	r.ServeHTTP(rr, req)
+
+	// Recoverer catches the nil-pool panic and returns 500.
+	// Chi's Recoverer writes no body — only the status code is reliable here.
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("health with nil pool: got status %d, want %d", rr.Code, http.StatusInternalServerError)
+	}
 }
 
 func TestNewRouterReturns404ForUnknown(t *testing.T) {
