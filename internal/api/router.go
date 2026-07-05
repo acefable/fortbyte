@@ -2,12 +2,6 @@
 package api
 
 import (
-	"context"
-	"encoding/json"
-	"log/slog"
-	"net/http"
-	"time"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,40 +9,37 @@ import (
 )
 
 // NewRouter creates a chi Mux with all API routes mounted under /api/v1/.
-func NewRouter(db *pgxpool.Pool) *chi.Mux {
+func NewRouter(db *pgxpool.Pool, jwtSecret []byte) *chi.Mux {
+	h := &Handlers{
+		Users:     repository.NewUserRepository(db),
+		APIKeys:   repository.NewAPIKeyRepository(db),
+		Refresh:   repository.NewRefreshTokenRepository(db),
+		JWTSecret: jwtSecret,
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
+	// ponytail: add logging, request ID, CORS middleware here later
 
 	r.Route("/api/v1", func(r chi.Router) {
+		// Public
 		r.Get("/health", healthHandler(db))
+		r.Get("/ready", readyHandler())
+
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", h.Register)
+			r.Post("/login", h.Login)
+			r.Post("/refresh", h.RefreshTokens)
+
+			// Protected
+			r.Group(func(r chi.Router) {
+				r.Use(h.authMiddleware())
+				r.Post("/logout", h.Logout)
+				r.Post("/api-keys", h.CreateAPIKey)
+				r.Delete("/api-keys/{keyID}", h.DeleteAPIKey)
+			})
+		})
 	})
 
 	return r
-}
-
-func healthHandler(db *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-
-		dbStatus := "up"
-		status := "ok"
-		if err := repository.Ping(ctx, db); err != nil {
-			dbStatus = "down"
-			status = "unhealthy"
-		}
-
-		resp := map[string]string{
-			"status": status,
-			"db":     dbStatus,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		if dbStatus == "down" {
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Error("health encode failed", "error", err)
-		}
-	}
 }

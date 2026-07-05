@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"charm.land/huh/v2"
@@ -149,4 +150,25 @@ func printJSON(w io.Writer, v any) error {
 	}
 	_, err = fmt.Fprintln(w, string(data))
 	return err
+}
+
+// resolveServerURL returns the server URL: flag value > config > error.
+func resolveServerURL(flagValue string) (string, error) {
+	var raw string
+	if flagValue != "" {
+		raw = flagValue
+	} else {
+		cfg, _ := loadConfig()
+		raw = cfg.APIURL
+	}
+	if raw == "" {
+		return "", fmt.Errorf("no server URL configured; use --server flag or run 'fort config set api-url <url>'")
+	}
+	if !strings.HasPrefix(raw, "http://") && !strings.HasPrefix(raw, "https://") {
+		return "", fmt.Errorf("invalid server URL: must start with http:// or https://")
+	}
+	if strings.HasPrefix(raw, "http://") {
+		fmt.Fprintf(os.Stderr, "Warning: using insecure HTTP connection; use HTTPS in production\n")
+	}
+	return raw, nil
 }
