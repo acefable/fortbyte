@@ -48,7 +48,7 @@ func main() {
 	}
 	slog.Info("migrations applied", "path", migrationsPath)
 
-	router := api.NewRouter(db)
+	router := api.NewRouter(db, cfg.JWTSecret)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

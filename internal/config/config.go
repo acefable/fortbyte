@@ -13,6 +13,7 @@ type Config struct {
 	JWTSecret   []byte
 	MasterKey   []byte
 	LogLevel    string
+	APIURL      string
 }
 
 // Load reads configuration from environment variables and validates required fields.
@@ -21,6 +22,8 @@ func Load() (*Config, error) {
 		Port:     getEnv("PORT", "8080"),
 		LogLevel: getEnv("LOG_LEVEL", "info"),
 	}
+
+	cfg.APIURL = getEnv("API_URL", "")
 
 	cfg.DatabaseURL = os.Getenv("DATABASE_URL")
 	if cfg.DatabaseURL == "" {

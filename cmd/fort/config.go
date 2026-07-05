@@ -11,6 +11,7 @@ import (
 
 type config struct {
 	VaultDir string `json:"vault_dir"`
+	APIURL   string `json:"api_url"`
 }
 
 var configCmd = &cobra.Command{
@@ -26,6 +27,9 @@ var configCmd = &cobra.Command{
 		} else {
 			fmt.Fprintf(cmd.OutOrStdout(), "Vault directory: %s\n", cfg.VaultDir)
 		}
+		if cfg.APIURL != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "API URL: %s\n", cfg.APIURL)
+		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Default vault directory: %s\n", defaultVaultDir())
 		return nil
 	},
@@ -38,19 +42,27 @@ var configSetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		value := args[1]
-		if key != "vault-dir" {
+		cfg, _ := loadConfig()
+		switch key {
+		case "vault-dir":
+			abs, err := filepath.Abs(value)
+			if err != nil {
+				return fmt.Errorf("invalid path: %w", err)
+			}
+			cfg.VaultDir = abs
+			if err := saveConfig(cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Vault directory set to: %s\n", abs)
+		case "api-url":
+			cfg.APIURL = value
+			if err := saveConfig(cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "API URL set to: %s\n", value)
+		default:
 			return fmt.Errorf("unknown config key: %s", key)
 		}
-		cfg, _ := loadConfig()
-		abs, err := filepath.Abs(value)
-		if err != nil {
-			return fmt.Errorf("invalid path: %w", err)
-		}
-		cfg.VaultDir = abs
-		if err := saveConfig(cfg); err != nil {
-			return err
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Vault directory set to: %s\n", abs)
 		return nil
 	},
 }
@@ -61,17 +73,21 @@ var configGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		if key != "vault-dir" {
-			return fmt.Errorf("unknown config key: %s", key)
-		}
 		cfg, err := loadConfig()
 		if err != nil {
 			return err
 		}
-		if cfg.VaultDir == "" {
-			fmt.Fprintln(cmd.OutOrStdout(), defaultVaultDir())
-		} else {
-			fmt.Fprintln(cmd.OutOrStdout(), cfg.VaultDir)
+		switch key {
+		case "vault-dir":
+			if cfg.VaultDir == "" {
+				fmt.Fprintln(cmd.OutOrStdout(), defaultVaultDir())
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), cfg.VaultDir)
+			}
+		case "api-url":
+			fmt.Fprintln(cmd.OutOrStdout(), cfg.APIURL)
+		default:
+			return fmt.Errorf("unknown config key: %s", key)
 		}
 		return nil
 	},
