@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/youruser/fortbyte/internal/repository"
 )
@@ -40,89 +39,81 @@ func generateAPIKey() (string, error) {
 	return "fb_" + hex.EncodeToString(b), nil
 }
 
-// createAPIKeyHandler handles POST /api/v1/auth/api-keys. Requires auth middleware.
-func createAPIKeyHandler(db *pgxpool.Pool) http.HandlerFunc {
-	apiKeyRepo := repository.NewAPIKeyRepository(db)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		userID := UserIDFromContext(r)
-		if userID == uuid.Nil {
-			writeError(w, http.StatusUnauthorized, "auth_error", "authentication required")
-			return
-		}
-
-		var req createAPIKeyRequest
-		if err := decodeJSONBody(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, "bad_request", "invalid request body")
-			return
-		}
-		if req.Name == "" {
-			writeError(w, http.StatusBadRequest, "bad_request", "name is required")
-			return
-		}
-
-		rawKey, err := generateAPIKey()
-		if err != nil {
-			slog.Error("generate api key failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		// ponytail: SHA-256 instead of bcrypt for API key hashing — needed for
-		// deterministic lookup in auth middleware (bcrypt salts differ per hash).
-		// The raw key has 264 bits of entropy; SHA-256 is sufficient.
-		hash := sha256.Sum256([]byte(rawKey))
-		keyHash := hex.EncodeToString(hash[:])
-
-		var expiresAt *time.Time
-		if req.ExpiresInDays != nil && *req.ExpiresInDays > 0 {
-			t := time.Now().AddDate(0, 0, *req.ExpiresInDays)
-			expiresAt = &t
-		}
-
-		key, err := apiKeyRepo.Create(r.Context(), userID, req.Name, keyHash, expiresAt)
-		if err != nil {
-			slog.Error("create api key failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		writeJSON(w, http.StatusCreated, createAPIKeyResponse{
-			ID:        key.ID,
-			Name:      key.Name,
-			Key:       rawKey,
-			CreatedAt: key.CreatedAt,
-		})
+// CreateAPIKey handles POST /api/v1/auth/api-keys. Requires auth middleware.
+func (h *Handlers) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
+	userID := UserIDFromContext(r)
+	if userID == uuid.Nil {
+		writeError(w, http.StatusUnauthorized, "auth_error", "authentication required")
+		return
 	}
+
+	var req createAPIKeyRequest
+	if err := decodeJSONBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "bad_request", "name is required")
+		return
+	}
+
+	rawKey, err := generateAPIKey()
+	if err != nil {
+		slog.Error("generate api key failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	// ponytail: SHA-256 instead of bcrypt for API key hashing — needed for
+	// deterministic lookup in auth middleware (bcrypt salts differ per hash).
+	// The raw key has 264 bits of entropy; SHA-256 is sufficient.
+	hash := sha256.Sum256([]byte(rawKey))
+	keyHash := hex.EncodeToString(hash[:])
+
+	var expiresAt *time.Time
+	if req.ExpiresInDays != nil && *req.ExpiresInDays > 0 {
+		t := time.Now().AddDate(0, 0, *req.ExpiresInDays)
+		expiresAt = &t
+	}
+
+	key, err := h.APIKeys.Create(r.Context(), userID, req.Name, keyHash, expiresAt)
+	if err != nil {
+		slog.Error("create api key failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, createAPIKeyResponse{
+		ID:        key.ID,
+		Name:      key.Name,
+		Key:       rawKey,
+		CreatedAt: key.CreatedAt,
+	})
 }
 
-// deleteAPIKeyHandler handles DELETE /api/v1/auth/api-keys/{keyID}. Requires auth middleware.
-func deleteAPIKeyHandler(db *pgxpool.Pool) http.HandlerFunc {
-	apiKeyRepo := repository.NewAPIKeyRepository(db)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		userID := UserIDFromContext(r)
-		if userID == uuid.Nil {
-			writeError(w, http.StatusUnauthorized, "auth_error", "authentication required")
-			return
-		}
-
-		keyID, err := uuid.Parse(chi.URLParam(r, "keyID"))
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "bad_request", "invalid key id")
-			return
-		}
-
-		if err := apiKeyRepo.Delete(r.Context(), keyID, userID); err != nil {
-			if errors.Is(err, repository.ErrKeyNotFound) {
-				writeError(w, http.StatusNotFound, "not_found", "api key not found")
-				return
-			}
-			slog.Error("delete api key failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+// DeleteAPIKey handles DELETE /api/v1/auth/api-keys/{keyID}. Requires auth middleware.
+func (h *Handlers) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
+	userID := UserIDFromContext(r)
+	if userID == uuid.Nil {
+		writeError(w, http.StatusUnauthorized, "auth_error", "authentication required")
+		return
 	}
+
+	keyID, err := uuid.Parse(chi.URLParam(r, "keyID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid key id")
+		return
+	}
+
+	if err := h.APIKeys.Delete(r.Context(), keyID, userID); err != nil {
+		if errors.Is(err, repository.ErrKeyNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "api key not found")
+			return
+		}
+		slog.Error("delete api key failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }

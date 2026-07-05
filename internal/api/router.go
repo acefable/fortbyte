@@ -5,10 +5,18 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/youruser/fortbyte/internal/repository"
 )
 
 // NewRouter creates a chi Mux with all API routes mounted under /api/v1/.
 func NewRouter(db *pgxpool.Pool, jwtSecret []byte) *chi.Mux {
+	h := &Handlers{
+		Users:     repository.NewUserRepository(db),
+		APIKeys:   repository.NewAPIKeyRepository(db),
+		Refresh:   repository.NewRefreshTokenRepository(db),
+		JWTSecret: jwtSecret,
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	// ponytail: add logging, request ID, CORS middleware here later
@@ -19,16 +27,16 @@ func NewRouter(db *pgxpool.Pool, jwtSecret []byte) *chi.Mux {
 		r.Get("/ready", readyHandler())
 
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/register", registerHandler(db, jwtSecret))
-			r.Post("/login", loginHandler(db, jwtSecret))
-			r.Post("/refresh", refreshHandler(db, jwtSecret))
+			r.Post("/register", h.Register)
+			r.Post("/login", h.Login)
+			r.Post("/refresh", h.RefreshTokens)
 
 			// Protected
 			r.Group(func(r chi.Router) {
-				r.Use(authMiddleware(db, jwtSecret))
-				r.Post("/logout", logoutHandler(db))
-				r.Post("/api-keys", createAPIKeyHandler(db))
-				r.Delete("/api-keys/{keyID}", deleteAPIKeyHandler(db))
+				r.Use(h.authMiddleware())
+				r.Post("/logout", h.Logout)
+				r.Post("/api-keys", h.CreateAPIKey)
+				r.Delete("/api-keys/{keyID}", h.DeleteAPIKey)
 			})
 		})
 	})

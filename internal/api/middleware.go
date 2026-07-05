@@ -11,8 +11,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/youruser/fortbyte/internal/repository"
 )
 
 type contextKey string
@@ -30,7 +28,7 @@ func UserIDFromContext(r *http.Request) uuid.UUID {
 }
 
 // authMiddleware validates JWT or API key Bearer tokens and injects the user ID into the context.
-func authMiddleware(db *pgxpool.Pool, jwtSecret []byte) func(http.Handler) http.Handler {
+func (h *Handlers) authMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -47,9 +45,9 @@ func authMiddleware(db *pgxpool.Pool, jwtSecret []byte) func(http.Handler) http.
 			token := parts[1]
 
 			if strings.HasPrefix(token, "fb_") {
-				authenticateAPIKey(w, r, db, token)
+				h.authenticateAPIKey(w, r, token)
 			} else {
-				authenticateJWT(w, r, jwtSecret, token)
+				h.authenticateJWT(w, r, token)
 			}
 
 			if UserIDFromContext(r) == uuid.Nil {
@@ -61,13 +59,13 @@ func authMiddleware(db *pgxpool.Pool, jwtSecret []byte) func(http.Handler) http.
 	}
 }
 
-func authenticateJWT(w http.ResponseWriter, r *http.Request, jwtSecret []byte, tokenString string) {
+func (h *Handlers) authenticateJWT(w http.ResponseWriter, r *http.Request, tokenString string) {
 	claims := &jwt.RegisteredClaims{}
 	parsed, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return jwtSecret, nil
+		return h.JWTSecret, nil
 	})
 	if err != nil || !parsed.Valid {
 		writeError(w, http.StatusUnauthorized, "auth_error", "invalid or expired token")
@@ -84,7 +82,7 @@ func authenticateJWT(w http.ResponseWriter, r *http.Request, jwtSecret []byte, t
 	*r = *r.WithContext(ctx)
 }
 
-func authenticateAPIKey(w http.ResponseWriter, r *http.Request, db *pgxpool.Pool, rawKey string) {
+func (h *Handlers) authenticateAPIKey(w http.ResponseWriter, r *http.Request, rawKey string) {
 	// ponytail: SHA-256 hash for deterministic lookup (bcrypt salts differ per hash).
 	// API key format: fb_<64-char-hex>
 	// fb_ prefix (3) + 64 hex chars = 67 total.
@@ -97,8 +95,7 @@ func authenticateAPIKey(w http.ResponseWriter, r *http.Request, db *pgxpool.Pool
 	hash := sha256.Sum256([]byte(rawKey))
 	keyHash := hex.EncodeToString(hash[:])
 
-	apiKeyRepo := repository.NewAPIKeyRepository(db)
-	key, err := apiKeyRepo.GetByKeyHash(r.Context(), keyHash)
+	key, err := h.APIKeys.GetByKeyHash(r.Context(), keyHash)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "auth_error", "invalid api key")
 		return

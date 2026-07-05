@@ -16,7 +16,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/youruser/fortbyte/internal/models"
@@ -81,8 +80,8 @@ func generateAccessToken(userID uuid.UUID, jwtSecret []byte) (string, error) {
 }
 
 // issueTokenPair creates an access + refresh token pair for a user and stores the refresh token.
-func issueTokenPair(ctx context.Context, db *pgxpool.Pool, jwtSecret []byte, userID uuid.UUID) (*tokenResponse, error) {
-	accessToken, err := generateAccessToken(userID, jwtSecret)
+func (h *Handlers) issueTokenPair(ctx context.Context, userID uuid.UUID) (*tokenResponse, error) {
+	accessToken, err := generateAccessToken(userID, h.JWTSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +91,7 @@ func issueTokenPair(ctx context.Context, db *pgxpool.Pool, jwtSecret []byte, use
 		return nil, err
 	}
 	refreshHash := hashToken(rawRefresh)
-	refreshRepo := repository.NewRefreshTokenRepository(db)
-	if _, err := refreshRepo.Create(ctx, userID, refreshHash, time.Now().Add(refreshTokenTTL)); err != nil {
+	if _, err := h.Refresh.Create(ctx, userID, refreshHash, time.Now().Add(refreshTokenTTL)); err != nil {
 		return nil, fmt.Errorf("store refresh token: %w", err)
 	}
 
@@ -113,178 +111,162 @@ func decodeJSONBody(r *http.Request, v any) error {
 	return nil
 }
 
-// registerHandler handles POST /api/v1/auth/register.
-func registerHandler(db *pgxpool.Pool, jwtSecret []byte) http.HandlerFunc {
-	userRepo := repository.NewUserRepository(db)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req authRequest
-		if err := decodeJSONBody(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, "bad_request", "invalid request body")
-			return
-		}
-
-		if !emailRegex.MatchString(req.Email) {
-			writeError(w, http.StatusBadRequest, "bad_request", "invalid email format")
-			return
-		}
-		if len(req.Password) < 8 {
-			writeError(w, http.StatusBadRequest, "bad_request", "password must be at least 8 characters")
-			return
-		}
-
-		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
-		if err != nil {
-			slog.Error("bcrypt hash failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		user, err := userRepo.Create(r.Context(), &models.User{
-			Email:        req.Email,
-			PasswordHash: string(hash),
-		})
-		if err != nil {
-			if errors.Is(err, repository.ErrEmailExists) {
-				writeError(w, http.StatusConflict, "conflict", "email already registered")
-				return
-			}
-			slog.Error("create user failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		resp, err := issueTokenPair(r.Context(), db, jwtSecret, user.ID)
-		if err != nil {
-			slog.Error("issue token pair failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		writeJSON(w, http.StatusCreated, resp)
+// Register handles POST /api/v1/auth/register.
+func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
+	var req authRequest
+	if err := decodeJSONBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
 	}
+
+	if !emailRegex.MatchString(req.Email) {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid email format")
+		return
+	}
+	if len(req.Password) < 8 {
+		writeError(w, http.StatusBadRequest, "bad_request", "password must be at least 8 characters")
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
+	if err != nil {
+		slog.Error("bcrypt hash failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	user, err := h.Users.Create(r.Context(), &models.User{
+		Email:        req.Email,
+		PasswordHash: string(hash),
+	})
+	if err != nil {
+		if errors.Is(err, repository.ErrEmailExists) {
+			writeError(w, http.StatusConflict, "conflict", "email already registered")
+			return
+		}
+		slog.Error("create user failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	resp, err := h.issueTokenPair(r.Context(), user.ID)
+	if err != nil {
+		slog.Error("issue token pair failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, resp)
 }
 
-// loginHandler handles POST /api/v1/auth/login.
-func loginHandler(db *pgxpool.Pool, jwtSecret []byte) http.HandlerFunc {
-	userRepo := repository.NewUserRepository(db)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req authRequest
-		if err := decodeJSONBody(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, "bad_request", "invalid request body")
-			return
-		}
-
-		user, err := userRepo.GetByEmail(r.Context(), req.Email)
-		if err != nil {
-			// Uniform error: don't distinguish wrong email from wrong password.
-			writeError(w, http.StatusUnauthorized, "auth_error", "invalid credentials")
-			return
-		}
-
-		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-			writeError(w, http.StatusUnauthorized, "auth_error", "invalid credentials")
-			return
-		}
-
-		resp, err := issueTokenPair(r.Context(), db, jwtSecret, user.ID)
-		if err != nil {
-			slog.Error("issue token pair failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		writeJSON(w, http.StatusOK, resp)
+// Login handles POST /api/v1/auth/login.
+func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
+	var req authRequest
+	if err := decodeJSONBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
 	}
+
+	user, err := h.Users.GetByEmail(r.Context(), req.Email)
+	if err != nil {
+		// Uniform error: don't distinguish wrong email from wrong password.
+		writeError(w, http.StatusUnauthorized, "auth_error", "invalid credentials")
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		writeError(w, http.StatusUnauthorized, "auth_error", "invalid credentials")
+		return
+	}
+
+	resp, err := h.issueTokenPair(r.Context(), user.ID)
+	if err != nil {
+		slog.Error("issue token pair failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
-// refreshHandler handles POST /api/v1/auth/refresh.
-func refreshHandler(db *pgxpool.Pool, jwtSecret []byte) http.HandlerFunc {
-	refreshRepo := repository.NewRefreshTokenRepository(db)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req refreshRequest
-		if err := decodeJSONBody(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, "bad_request", "invalid request body")
-			return
-		}
-		if req.RefreshToken == "" {
-			writeError(w, http.StatusBadRequest, "bad_request", "refresh_token is required")
-			return
-		}
-
-		tokenHash := hashToken(req.RefreshToken)
-		existing, err := refreshRepo.GetByTokenHash(r.Context(), tokenHash)
-		if err != nil {
-			writeError(w, http.StatusUnauthorized, "auth_error", "invalid refresh token")
-			return
-		}
-
-		if existing.RevokedAt != nil {
-			// ponytail: revoked token reuse detection — log and reject. In production, revoke all tokens for the user.
-			slog.Warn("attempted reuse of revoked refresh token", "user_id", existing.UserID)
-			writeError(w, http.StatusUnauthorized, "auth_error", "invalid refresh token")
-			return
-		}
-
-		if time.Now().After(existing.ExpiresAt) {
-			writeError(w, http.StatusUnauthorized, "auth_error", "refresh token expired")
-			return
-		}
-
-		// Rotate: revoke old token, issue new pair.
-		if err := refreshRepo.Revoke(r.Context(), existing.ID); err != nil {
-			slog.Error("revoke refresh token failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		accessToken, err := generateAccessToken(existing.UserID, jwtSecret)
-		if err != nil {
-			slog.Error("generate access token failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		rawRefresh, err := generateRefreshToken()
-		if err != nil {
-			slog.Error("generate refresh token failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-		newHash := hashToken(rawRefresh)
-		if _, err := refreshRepo.Create(r.Context(), existing.UserID, newHash, time.Now().Add(refreshTokenTTL)); err != nil {
-			slog.Error("store new refresh token failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		writeJSON(w, http.StatusOK, &tokenResponse{
-			AccessToken:  accessToken,
-			RefreshToken: rawRefresh,
-			ExpiresIn:    int(accessTokenTTL.Seconds()),
-		})
+// RefreshTokens handles POST /api/v1/auth/refresh.
+func (h *Handlers) RefreshTokens(w http.ResponseWriter, r *http.Request) {
+	var req refreshRequest
+	if err := decodeJSONBody(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
 	}
+	if req.RefreshToken == "" {
+		writeError(w, http.StatusBadRequest, "bad_request", "refresh_token is required")
+		return
+	}
+
+	tokenHash := hashToken(req.RefreshToken)
+	existing, err := h.Refresh.GetByTokenHash(r.Context(), tokenHash)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "auth_error", "invalid refresh token")
+		return
+	}
+
+	if existing.RevokedAt != nil {
+		// ponytail: revoked token reuse detection — log and reject. In production, revoke all tokens for the user.
+		slog.Warn("attempted reuse of revoked refresh token", "user_id", existing.UserID)
+		writeError(w, http.StatusUnauthorized, "auth_error", "invalid refresh token")
+		return
+	}
+
+	if time.Now().After(existing.ExpiresAt) {
+		writeError(w, http.StatusUnauthorized, "auth_error", "refresh token expired")
+		return
+	}
+
+	// Rotate: revoke old token, issue new pair.
+	if err := h.Refresh.Revoke(r.Context(), existing.ID); err != nil {
+		slog.Error("revoke refresh token failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	accessToken, err := generateAccessToken(existing.UserID, h.JWTSecret)
+	if err != nil {
+		slog.Error("generate access token failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	rawRefresh, err := generateRefreshToken()
+	if err != nil {
+		slog.Error("generate refresh token failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+	newHash := hashToken(rawRefresh)
+	if _, err := h.Refresh.Create(r.Context(), existing.UserID, newHash, time.Now().Add(refreshTokenTTL)); err != nil {
+		slog.Error("store new refresh token failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, &tokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: rawRefresh,
+		ExpiresIn:    int(accessTokenTTL.Seconds()),
+	})
 }
 
-// logoutHandler handles POST /api/v1/auth/logout. Requires auth middleware.
-func logoutHandler(db *pgxpool.Pool) http.HandlerFunc {
-	refreshRepo := repository.NewRefreshTokenRepository(db)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		userID := UserIDFromContext(r)
-		if userID == uuid.Nil {
-			writeError(w, http.StatusUnauthorized, "auth_error", "authentication required")
-			return
-		}
-
-		if err := refreshRepo.RevokeAllForUser(r.Context(), userID); err != nil {
-			slog.Error("revoke all refresh tokens failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
-			return
-		}
-
-		writeJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})
+// Logout handles POST /api/v1/auth/logout. Requires auth middleware.
+func (h *Handlers) Logout(w http.ResponseWriter, r *http.Request) {
+	userID := UserIDFromContext(r)
+	if userID == uuid.Nil {
+		writeError(w, http.StatusUnauthorized, "auth_error", "authentication required")
+		return
 	}
+
+	if err := h.Refresh.RevokeAllForUser(r.Context(), userID); err != nil {
+		slog.Error("revoke all refresh tokens failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "server_error", "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})
 }
