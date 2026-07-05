@@ -33,24 +33,20 @@ func healthHandler(db *pgxpool.Pool) http.HandlerFunc {
 		defer cancel()
 
 		dbStatus := "up"
-		status := "ok"
+		statusStr := "ok"
 		if err := repository.Ping(ctx, db); err != nil {
 			dbStatus = "down"
-			status = "unhealthy"
+			statusStr = "unhealthy"
 		}
 
-		resp := map[string]string{
-			"status": status,
-			"db":     dbStatus,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
+		status := http.StatusOK
 		if dbStatus == "down" {
-			w.WriteHeader(http.StatusServiceUnavailable)
+			status = http.StatusServiceUnavailable
 		}
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Error("health encode failed", "error", err)
-		}
+		writeJSON(w, status, map[string]string{
+			"status": statusStr,
+			"db":     dbStatus,
+		})
 	}
 }
 

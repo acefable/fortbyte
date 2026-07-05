@@ -18,9 +18,6 @@ const (
 
 var vaultDir string
 
-// serverURL holds the value of the --server persistent flag.
-var serverURL string
-
 // readPasswordFn reads a password from stdin without echoing.
 // Override in tests to avoid requiring a real terminal.
 var readPasswordFn = func() (string, error) {
@@ -46,21 +43,4 @@ func init() {
 	if cfg.VaultDir != "" {
 		vaultDir = cfg.VaultDir
 	}
-	rootCmd.PersistentFlags().StringVar(&serverURL, "server", "", "API server URL")
-}
-
-// resolveAPIURL returns the API server URL with the following priority:
-// 1. --server flag (explicit override)
-// 2. FORTBYTE_API_URL env var
-// 3. api_url from config file
-// Returns empty string if not configured (caller should error).
-func resolveAPIURL() string {
-	if serverURL != "" {
-		return serverURL
-	}
-	if env := os.Getenv("FORTBYTE_API_URL"); env != "" {
-		return env
-	}
-	cfg, _ := loadConfig()
-	return cfg.APIURL
 }

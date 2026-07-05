@@ -218,6 +218,8 @@ paths:
                   status:
                     type: string
                     example: deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -313,6 +315,11 @@ components:
         created_at:
           type: string
           format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration timestamp (null if no expiry)
 
     ErrorResponse:
       type: object

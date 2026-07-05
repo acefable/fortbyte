@@ -27,66 +27,94 @@ func TestAPIKeyFormat_ValidKey(t *testing.T) {
 
 func TestAPIKeyFormat_TooShort(t *testing.T) {
 	t.Parallel()
-	key := "fb_" + strings.Repeat("a", 60)
-	if len(key) != 63 {
-		t.Fatalf("test key length = %d, want 63", len(key))
-	}
-	if strings.HasPrefix(key, "fb_") && len(key) != 67 {
-		// Expected: rejected.
-	} else {
-		t.Error("short key should be rejected but passed validation")
+	h := newTestHandlers()
+	mw := h.authMiddleware()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called with invalid key format")
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer fb_"+strings.Repeat("a", 60))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rr.Code)
 	}
 }
 
 func TestAPIKeyFormat_TooLong(t *testing.T) {
 	t.Parallel()
-	key := "fb_" + strings.Repeat("a", 68)
-	if strings.HasPrefix(key, "fb_") && len(key) != 67 {
-		// Expected: rejected.
-	} else {
-		t.Error("long key should be rejected but passed validation")
+	h := newTestHandlers()
+	mw := h.authMiddleware()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called with invalid key format")
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer fb_"+strings.Repeat("a", 68))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rr.Code)
 	}
 }
 
 func TestAPIKeyFormat_NoPrefix(t *testing.T) {
 	t.Parallel()
-	key := "ak_" + strings.Repeat("a", 64)
-	if strings.HasPrefix(key, "fb_") {
-		t.Error("non-fb_ key should not have fb_ prefix")
+	h := newTestHandlers()
+	mw := h.authMiddleware()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called with invalid key format")
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer ak_"+strings.Repeat("a", 64))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rr.Code)
 	}
 }
 
 func TestAuthMiddleware_MissingHeader(t *testing.T) {
 	t.Parallel()
+	h := newTestHandlers()
+	mw := h.authMiddleware()
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler should not be called without auth header")
+	}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	_ = httptest.NewRecorder()
-
-	authHeader := req.Header.Get("Authorization")
-	if authHeader != "" {
-		t.Fatal("expected empty Authorization header")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rr.Code)
 	}
 }
 
 func TestAuthMiddleware_InvalidFormat(t *testing.T) {
 	t.Parallel()
+	h := newTestHandlers()
+	mw := h.authMiddleware()
+
 	tests := []struct {
 		name   string
 		header string
-		valid  bool
 	}{
-		{"no space", "Bearerabc", false},
-		{"wrong scheme", "Basic abc", false},
-		{"lowercase bearer", "bearer abc", true},
-		{"empty parts", " ", false},
+		{"no space", "Bearerabc"},
+		{"wrong scheme", "Basic abc"},
+		{"empty parts", " "},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			parts := strings.SplitN(tt.header, " ", 2)
-			valid := len(parts) == 2 && strings.EqualFold(parts[0], "Bearer")
-			if valid != tt.valid {
-				t.Errorf("header %q: valid = %v, want %v", tt.header, valid, tt.valid)
+			handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Error("handler should not be called with invalid header")
+			}))
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Authorization", tt.header)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			if rr.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want 401", rr.Code)
 			}
 		})
 	}

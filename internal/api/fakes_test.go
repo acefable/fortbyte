@@ -92,7 +92,7 @@ func (f *fakeRefreshTokenRepo) Create(ctx context.Context, userID uuid.UUID, tok
 func (f *fakeRefreshTokenRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*models.RefreshToken, error) {
 	t, ok := f.tokens[tokenHash]
 	if !ok {
-		return nil, fmt.Errorf("get refresh token: %w", repository.ErrNotFound)
+		return nil, fmt.Errorf("get refresh token: %w", repository.ErrRefreshTokenNotFound)
 	}
 	return t, nil
 }

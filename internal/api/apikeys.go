@@ -24,13 +24,14 @@ type createAPIKeyRequest struct {
 
 // createAPIKeyResponse is the response after creating an API key.
 type createAPIKeyResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Key       string    `json:"key"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uuid.UUID  `json:"id"`
+	Name      string     `json:"name"`
+	Key       string     `json:"key"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
-// generateAPIKey creates a random API key with fb_ prefix: fb_ + 64 hex chars = 66 total.
+// generateAPIKey creates a random API key with fb_ prefix: fb_ + 64 hex chars = 67 total.
 func generateAPIKey() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -88,6 +89,7 @@ func (h *Handlers) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		Name:      key.Name,
 		Key:       rawKey,
 		CreatedAt: key.CreatedAt,
+		ExpiresAt: expiresAt,
 	})
 }
 

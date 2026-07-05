@@ -7,13 +7,12 @@ import (
 )
 
 func TestNewRouterRoutesHealth(t *testing.T) {
-	t.Skip("health handler requires real db pool; nil pool causes unrecoverable panic in chi v5")
-
 	r := NewRouter(nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
+	// Nil pool panics in repository.Ping; chi's Recoverer returns 500.
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("health with nil pool: got status %d, want %d", rr.Code, http.StatusInternalServerError)
 	}

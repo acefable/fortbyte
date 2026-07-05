@@ -14,7 +14,8 @@ import (
 
 // Sentinel errors for auth repository operations.
 var (
-	ErrKeyNotFound = errors.New("api key not found")
+	ErrKeyNotFound          = errors.New("api key not found")
+	ErrRefreshTokenNotFound = errors.New("refresh token not found")
 )
 
 // APIKeyRepository provides database operations for API keys.
@@ -133,7 +134,7 @@ func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, tokenHash s
 	).Scan(&token.ID, &token.UserID, &token.TokenHash, &token.ExpiresAt, &token.RevokedAt, &token.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("get refresh token by hash: %w", ErrNotFound)
+			return nil, fmt.Errorf("get refresh token by hash: %w", ErrRefreshTokenNotFound)
 		}
 		return nil, fmt.Errorf("get refresh token by hash: %w", err)
 	}
