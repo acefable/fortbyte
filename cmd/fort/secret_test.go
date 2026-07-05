@@ -303,7 +303,7 @@ func TestSecretEnvRequiresProject(t *testing.T) {
 }
 
 func TestSecretListFilter(t *testing.T) {
-	secretListCmd.Flags().Set("env", "")
+	resetCmdFlags(t)
 	dir := setupTestVault(t)
 	salt, err := vault.GetSalt(dir)
 	if err != nil {

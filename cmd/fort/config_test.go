@@ -72,12 +72,8 @@ func TestConfigRequiresArgs(t *testing.T) {
 }
 
 func TestLoadSaveConfigRoundtrip(t *testing.T) {
-	origHome, _ := os.UserHomeDir()
 	tmpDir := t.TempDir()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Setenv("HOME", origHome) })
+	t.Setenv("HOME", tmpDir)
 
 	cfg := config{VaultDir: "/custom/vault/path"}
 	if err := saveConfig(cfg); err != nil {
@@ -94,12 +90,8 @@ func TestLoadSaveConfigRoundtrip(t *testing.T) {
 }
 
 func TestLoadConfigMissing(t *testing.T) {
-	origHome, _ := os.UserHomeDir()
 	tmpDir := t.TempDir()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Setenv("HOME", origHome) })
+	t.Setenv("HOME", tmpDir)
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -111,12 +103,8 @@ func TestLoadConfigMissing(t *testing.T) {
 }
 
 func TestLoadConfigCorrupt(t *testing.T) {
-	origHome, _ := os.UserHomeDir()
 	tmpDir := t.TempDir()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Setenv("HOME", origHome) })
+	t.Setenv("HOME", tmpDir)
 
 	configDir := filepath.Join(tmpDir, fortDir)
 	if err := os.MkdirAll(configDir, 0700); err != nil {

@@ -71,7 +71,20 @@ func TestGenerateCmdFlags(t *testing.T) {
 	}
 }
 
+func resetGenerateFlags(t *testing.T) {
+	t.Helper()
+	if f := generateCmd.Flags().Lookup("length"); f != nil {
+		f.Value.Set(f.DefValue)
+		f.Changed = false
+	}
+	if f := generateCmd.Flags().Lookup("no-symbols"); f != nil {
+		f.Value.Set(f.DefValue)
+		f.Changed = false
+	}
+}
+
 func TestGenerateCmdExec(t *testing.T) {
+	resetGenerateFlags(t)
 	t.Cleanup(func() { rootCmd.SetArgs(nil) })
 
 	var buf bytes.Buffer
@@ -88,6 +101,7 @@ func TestGenerateCmdExec(t *testing.T) {
 }
 
 func TestGenerateCmdCustomLength(t *testing.T) {
+	resetGenerateFlags(t)
 	t.Cleanup(func() { rootCmd.SetArgs(nil) })
 
 	var buf bytes.Buffer
@@ -104,6 +118,7 @@ func TestGenerateCmdCustomLength(t *testing.T) {
 }
 
 func TestGenerateCmdNoSymbols(t *testing.T) {
+	resetGenerateFlags(t)
 	t.Cleanup(func() { rootCmd.SetArgs(nil) })
 
 	var buf bytes.Buffer

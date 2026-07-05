@@ -24,15 +24,14 @@ func TestEnvAddRequiresProject(t *testing.T) {
 }
 
 func TestEnvListAllowsNoArgs(t *testing.T) {
+	resetCmdFlags(t)
+	setupTestVault(t)
+
 	t.Cleanup(func() { rootCmd.SetArgs(nil) })
-	mockReadPassword(t, "test-password-1234", nil)
+
 	rootCmd.SetArgs([]string{"env", "list"})
-	err := rootCmd.Execute()
-	if err == nil {
-		t.Skip("vault exists in test environment — ok")
-	}
-	if strings.Contains(err.Error(), "accepts") {
-		t.Errorf("env list should not require args, got: %v", err)
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("env list should accept no args, got: %v", err)
 	}
 }
 
